@@ -1,0 +1,6 @@
+{
+    "pythonVersion": "3.12",
+    "typeCheckingMode": "strict",
+    "reportUnusedImport": "warning",
+    "stubPath": "./typings" // 默认值
+}
