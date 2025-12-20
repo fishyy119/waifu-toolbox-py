@@ -1,1 +1,5 @@
-dghs-imgutils
+dghs-imgutils==0.19.0
+onnxruntime==1.20.0  # gpu运行报错可尝试锁定该版本
+
+# GPU支持版本
+# dghs-imgutils[gpu]

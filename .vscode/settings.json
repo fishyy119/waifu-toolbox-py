@@ -1,4 +1,7 @@
 {
+    "files.exclude": {
+        "**/__pycache__": true
+    },
     "terminal.integrated.env.windows": {
         "PYTHONPATH": "${workspaceFolder}"
     },
