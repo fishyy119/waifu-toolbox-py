@@ -1,5 +1,4 @@
 import pickle
-import random
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -8,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 
-from ..utils.common import compute_file_hash
+from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.console import COLOR_CODES, log_info
 from ..utils.image import load_image
 
@@ -88,7 +87,6 @@ class ImageDBCCIP:
                 protocol=pickle.HIGHEST_PROTOCOL,
             )
 
-    # TODO: 基于距离采样
     def sample(self, max_num: int) -> None:
         """
         从每个类别中随机采样最多 max_num 个样本，用于分类参考。
@@ -108,7 +106,13 @@ class ImageDBCCIP:
             if len(indices) <= max_num:
                 selected_indices.extend(indices)
             else:
-                selected_indices.extend(random.sample(indices, max_num))
+                from imgutils.metrics import ccip_batch_differences
+
+                distance_matrix = ccip_batch_differences([self.features[i, :] for i in indices])
+                sample_indices_local = farthest_point_sampling(distance_matrix, max_num)
+                sample_indices = [indices[i] for i in sample_indices_local]
+
+                selected_indices.extend(sample_indices)
 
         # 同步裁剪所有成员变量
         self.features = self.features[selected_indices, :]
