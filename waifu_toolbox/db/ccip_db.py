@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from ..utils.common import compute_file_hash
-from ..utils.console import log_info
+from ..utils.console import COLOR_CODES, log_info
 from ..utils.image import load_image
 
 DB_ROOT = Path(__file__).parents[2] / "database/ccip"
@@ -175,7 +175,7 @@ class ImageDBCCIP:
         log_info(f"Purged {len(remove_indices)} images from repository '{name}'.")
         return True
 
-    def update(self, name: str) -> bool:
+    def update(self, name: str, debug: bool = False) -> bool:
         """更新仓库索引（仓库根路径已经被记录在其中）"""
         self.load(name)
         assert self.repo_path is not None
@@ -183,23 +183,36 @@ class ImageDBCCIP:
 
         image_paths, labels = self.scan_imgs_with_label(self.repo_path)
 
-        # TODO: 未考虑移动已有图片分类的情况
-        # 计算文件 hash 并去重
+        hash_to_index = {h: i for i, h in enumerate(self.hashes)}
+        updated_labels = 0
         new_hashes: list[bytes] = []
         new_paths: list[Path] = []
         new_labels: list[str] = []
 
-        for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="计算文件哈希"):
+        for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="扫描并同步索引"):
             h = compute_file_hash(p)
-            if h in self.hashes:  # 已存在索引中
-                continue
-            new_hashes.append(h)
-            new_paths.append(p)
-            new_labels.append(label)
+
+            if h in hash_to_index:  # 已存在索引中
+                idx = hash_to_index[h]
+                if self.labels[idx] != label:  # 分类发生变化，仅更新 label
+                    if debug:
+                        print(
+                            f"Updated label for image {COLOR_CODES['blue']}{p}{COLOR_CODES['reset']}",
+                            f"from {COLOR_CODES['green']}'{self.labels[idx]}'{COLOR_CODES['reset']}",
+                            f"to {COLOR_CODES['green']}'{label}'{COLOR_CODES['reset']}",
+                        )
+                    self.labels[idx] = label
+                    updated_labels += 1
+            else:  # 新图片
+                new_hashes.append(h)
+                new_paths.append(p)
+                new_labels.append(label)
 
         if not new_paths:
-            log_info("No new images to add.")
-            return False
+            log_info(f"无新增图片，更新了 {updated_labels} 个标签。")
+            if updated_labels == 0:
+                return False
+            return True
 
         # 提取特征
         images = [load_image(p) for p in tqdm(new_paths, desc="加载图片")]
@@ -210,6 +223,8 @@ class ImageDBCCIP:
 
         self.hashes.extend(new_hashes)
         self.labels.extend(new_labels)
+
+        log_info(f"增加了 {len(new_paths)} 张新图片，更新了 {updated_labels} 个标签。")
 
         return True
 
