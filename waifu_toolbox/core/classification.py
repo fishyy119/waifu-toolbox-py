@@ -5,14 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from imgutils.metrics.ccip import ccip_clustering, ccip_extract_feature
+from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
-from tqdm import tqdm
 
-from waifu_toolbox.db.ccip_db import ImageDBCCIP
-
+from ..db.ccip_db import ImageDBCCIP
 from ..utils.console import log_info
-from ..utils.image import load_images_from_folder
+from ..utils.image import get_image_features_use_cache, load_images_from_folder
 
 
 def _extract_features_to_list(features: NDArray | List[NDArray], indices: List[int] | None = None) -> List[NDArray]:
@@ -51,10 +49,9 @@ def classify_by_ccip(labeled_repo: str, to_classify_root: Path, num_references: 
     # -----------------------------
     # 2. 加载待分类图片
     # -----------------------------
-    to_classify_images, to_classify_paths = load_images_from_folder(to_classify_root, tqdm_title="加载待分类图片")
-    if not to_classify_images:
+    to_classify_features, to_classify_paths = get_image_features_use_cache(img_folder_root=to_classify_root)
+    if not to_classify_paths:
         raise RuntimeError("未找到待分类图片")
-    to_classify_features = [ccip_extract_feature(img) for img in tqdm(to_classify_images, desc="提取待分类图片特征")]
 
     # -----------------------------
     # 3. 合并图片

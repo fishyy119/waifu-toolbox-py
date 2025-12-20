@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.console import COLOR_CODES, log_info
-from ..utils.image import load_image
+from ..utils.image import get_image_features_use_cache
 
 DB_ROOT = Path(__file__).parents[2] / "database/ccip"
 DB_ROOT.mkdir(exist_ok=True)
@@ -138,20 +138,6 @@ class ImageDBCCIP:
 
         return image_paths, labels
 
-    @staticmethod
-    def extract_features(imgs) -> NDArray[np.float32]:
-        from imgutils.metrics.ccip import ccip_extract_feature
-
-        features_list: List[NDArray[np.float32]] = []
-        for img in tqdm(imgs, desc="提取特征"):
-            # 虽然有另一个batch函数，但不知道他是怎么搞的，一直在分配内存时报错。。。
-            feature = ccip_extract_feature(img)  # pyright: ignore[reportArgumentType]
-            features_list.append(feature)
-            # shape: (D,)
-
-        features = np.stack(features_list, axis=0)  # shape: (N, D)
-        return features
-
     def purge(self, name: str) -> bool:
         """移除索引中已经不存在于磁盘的图片记录"""
         self.load(name)
@@ -218,12 +204,10 @@ class ImageDBCCIP:
                 return False
             return True
 
-        # 提取特征
-        images = [load_image(p) for p in tqdm(new_paths, desc="加载图片")]
-        new_features = self.extract_features(images)
+        new_features, _ = get_image_features_use_cache(paths_and_hashes=(new_paths, new_hashes))
 
         # 更新索引
-        self.features = np.concatenate([self.features, new_features], axis=0)
+        self.features = np.concatenate([self.features, np.stack(new_features, axis=0)], axis=0)
 
         self.hashes.extend(new_hashes)
         self.labels.extend(new_labels)
@@ -252,10 +236,10 @@ class ImageDBCCIP:
         if not valid_paths:
             return False
 
-        images = [load_image(p) for p in tqdm(valid_paths, desc="加载图片")]
+        features, _ = get_image_features_use_cache(paths_and_hashes=(valid_paths, hashes))
 
         # 写入索引
-        self.features = self.extract_features(images)
+        self.features = np.stack(features, axis=0)
 
         self.repo_name = repo_name
         self.repo_path = path
