@@ -2,11 +2,16 @@ from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 CACHE_ROOT = Path(__file__).parents[2] / "database/cache"
 CACHE_ROOT.mkdir(exist_ok=True, parents=True)
 
+
+CCIP_Feature = NDArray[np.float32]
 CacheName = Literal["ccip"]
+FeatureType = CCIP_Feature
+# LPIPS的特征极大（100个/GB），是直接提取的CNN参数，不具备保存条件
 
 
 class CacheManager:
@@ -17,7 +22,7 @@ class CacheManager:
     """
 
     def __init__(self):
-        self.caches: Dict[CacheName, Dict[bytes, Any]] = {}  # 内存字典
+        self.caches: Dict[CacheName, Dict[bytes, FeatureType]] = {}  # 内存字典
 
     def _get_cache_path(self, feature_name: CacheName) -> Path:
         return CACHE_ROOT / f"{feature_name}.npz"

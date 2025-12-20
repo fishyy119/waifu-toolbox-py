@@ -10,7 +10,8 @@ from numpy.typing import NDArray
 
 from ..db.ccip_db import ImageDBCCIP
 from ..utils.console import log_info
-from ..utils.image import get_image_features_use_cache, load_images_from_folder
+from ..utils.feature import get_image_features_use_cache
+from ..utils.image import load_images_from_folder
 
 
 def _extract_features_to_list(features: NDArray | List[NDArray], indices: List[int] | None = None) -> List[NDArray]:
@@ -49,7 +50,7 @@ def classify_by_ccip(labeled_repo: str, to_classify_root: Path, num_references: 
     # -----------------------------
     # 2. 加载待分类图片
     # -----------------------------
-    to_classify_features, to_classify_paths = get_image_features_use_cache(img_folder_root=to_classify_root)
+    to_classify_features, to_classify_paths = get_image_features_use_cache("ccip", img_folder_root=to_classify_root)
     if not to_classify_paths:
         raise RuntimeError("未找到待分类图片")
 

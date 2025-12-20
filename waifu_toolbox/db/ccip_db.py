@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.console import COLOR_CODES, log_info
-from ..utils.image import get_image_features_use_cache
+from ..utils.feature import get_image_features_use_cache
 
 DB_ROOT = Path(__file__).parents[2] / "database/ccip"
 DB_ROOT.mkdir(exist_ok=True)

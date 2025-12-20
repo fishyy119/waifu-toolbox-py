@@ -68,6 +68,19 @@ def main():
         "--inplace", action="store_true", help="If just cluster, the report will be saved in the original folder"
     )
 
+    # ========================
+    # sort 子命令
+    # ========================
+    sort_parser = subparsers.add_parser(
+        "sort", help="Sort images in directories based on perceptual similarity (LPIPS + MST-TSP)"
+    )
+    sort_parser.add_argument(
+        "-d", "--dir", type=Path, required=True, help="Root directory containing images or subdirectories to sort"
+    )
+    sort_parser.add_argument(
+        "-m", "--memory-limit", type=int, default=2048, help="Memory limit in MB (default 2048 for 200 images)"
+    )
+
     args = parser.parse_args()
 
     if args.command == "classify":
@@ -77,6 +90,11 @@ def main():
             just_cluster_by_ccip(args.wait_classify, args.inplace)
         else:
             classify_by_ccip(args.repo, args.wait_classify, args.num_references)
+
+    elif args.command == "sort":
+        from .core.sort import sort_images_by_perceptual_similarity
+
+        sort_images_by_perceptual_similarity(args.dir, args.memory_limit)
 
     elif args.command == "repo":
         if args.repo_command == "create":
