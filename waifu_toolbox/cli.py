@@ -5,6 +5,7 @@ from pathlib import Path
 from .db.operations import (
     change_repo_path,
     create_repo,
+    deduplicate_repo,
     purge_repo,
     show_repo_info,
     update_repo,
@@ -40,6 +41,9 @@ def main():
     repo_update.add_argument("-n", "--name", required=True, help="Repository name")
     repo_update.add_argument(
         "--purge", action="store_true", help="Remove images from the repository index that no longer exist on disk"
+    )
+    repo_update.add_argument(
+        "--deduplicate", action="store_true", help="Deduplicate images in the repository based on file hash"
     )
     repo_update.add_argument(
         "--set-path", type=Path, default=None, help="Set or change the root path of the repository"
@@ -107,6 +111,8 @@ def main():
         elif args.repo_command == "update":
             if args.purge:
                 purge_repo(args.name)
+            elif args.deduplicate:
+                deduplicate_repo(args.name)
             elif args.set_path:
                 change_repo_path(args.name, new_path=args.set_path)
             else:

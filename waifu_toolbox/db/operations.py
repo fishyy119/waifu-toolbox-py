@@ -15,6 +15,11 @@ def change_repo_path(repo_name: str, new_path: Path) -> None:
     db.save()
 
 
+def deduplicate_repo(repo_name: str) -> None:
+    db = ImageDBCCIP()
+    db.deduplicate(repo_name)
+
+
 def update_repo(repo_name: str) -> None:
     db = ImageDBCCIP()
     if db.update(repo_name):

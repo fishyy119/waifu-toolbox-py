@@ -11,6 +11,7 @@ python -m waifu_toolbox.cli repo create -n "仓库名" -p "仓库路径"  # 创�
 
 python -m waifu_toolbox.cli repo update -n "仓库名"  # 更新索引
 python -m waifu_toolbox.cli repo update -n "仓库名" --purge  # 去除无效索引
+python -m waifu_toolbox.cli repo update -n "仓库名" --deduplicate  # 基于文件hash去重
 python -m waifu_toolbox.cli repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
 
 python -m waifu_toolbox.cli repo info -n "仓库名"  # 查询仓库信息

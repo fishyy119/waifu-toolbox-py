@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Literal
+from typing import List, Literal, Tuple
 
 Color = Literal["red", "green", "yellow", "blue", "magenta", "cyan", "white", "reset"]
 
@@ -15,6 +15,26 @@ COLOR_CODES: dict[Color, str] = {
 }
 
 
+def cprint_fast(
+    texts: List[Tuple[str, Color] | str],
+    sep: str = " ",
+    end: str = "\n",
+    flush: bool = False,
+) -> None:
+    """快速格式化复杂彩色文字"""
+    colored_texts = []
+    for t in texts:
+        match t:
+            case (text, color):  # tuple 解包
+                colored_texts.append(f"{COLOR_CODES.get(color, COLOR_CODES['reset'])}{text}{COLOR_CODES['reset']}")
+            case str():
+                colored_texts.append(t)
+            case _:
+                raise TypeError(f"Unsupported type: {type(t)}")
+
+    print(sep.join(colored_texts), end=end, flush=flush)
+
+
 def cprint(
     *args: object,
     color: Color = "reset",
@@ -22,7 +42,7 @@ def cprint(
     end: str = "\n",
     flush: bool = False,
 ) -> None:
-    """彩色打印文本，兼容原生print函数参数"""
+    """彩色打印文本"""
     text = sep.join(str(arg) for arg in args)
     colored_text = f"{COLOR_CODES.get(color, COLOR_CODES['reset'])}{text}{COLOR_CODES['reset']}"
     print(colored_text, end=end, flush=flush)

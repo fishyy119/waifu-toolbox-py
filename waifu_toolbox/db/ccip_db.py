@@ -1,5 +1,6 @@
 import pickle
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -8,7 +9,7 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
-from ..utils.console import COLOR_CODES, log_info
+from ..utils.console import cprint_fast, log_info
 from ..utils.feature import get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 
@@ -152,21 +153,32 @@ class ImageDBCCIP:
             h = compute_file_hash(p)
             existing_hashes.add(h)
 
-        # 找出 self.hashes 中不再存在的索引
-        remove_indices = [i for i, h in enumerate(self.hashes) if h not in existing_hashes]
-        if not remove_indices:
+        # 要考虑数据库内部记录的hashes有重复的情况
+        seen = set()
+        keep_indices = []
+
+        for i, h in enumerate(self.hashes):
+            if h not in existing_hashes:
+                continue  # 磁盘不存在
+            if h in seen:
+                continue  # 索引内部重复
+            seen.add(h)
+            keep_indices.append(i)
+
+        if len(keep_indices) == len(self.hashes):
             log_info("No images to purge.")
             return False
 
         # 同步移除 labels / features / hashes
-        self.labels = [v for i, v in enumerate(self.labels) if i not in remove_indices]
-        self.features = np.delete(self.features, remove_indices, axis=0)
-        self.hashes = [h for i, h in enumerate(self.hashes) if i not in remove_indices]
+        removed = len(self.hashes) - len(keep_indices)
+        self.labels = [self.labels[i] for i in keep_indices]
+        self.features = self.features[keep_indices]
+        self.hashes = [self.hashes[i] for i in keep_indices]
 
-        log_info(f"Purged {len(remove_indices)} images from repository '{name}'.")
+        log_info(f"Purged {removed} images from repository '{name}'.")
         return True
 
-    def update(self, name: str, debug: bool = False) -> bool:
+    def update(self, name: str) -> bool:
         """更新仓库索引（仓库根路径已经被记录在其中）"""
         self.load(name)
         assert self.repo_path is not None
@@ -186,12 +198,6 @@ class ImageDBCCIP:
             if h in hash_to_index:  # 已存在索引中
                 idx = hash_to_index[h]
                 if self.labels[idx] != label:  # 分类发生变化，仅更新 label
-                    if debug:
-                        print(
-                            f"Updated label for image {COLOR_CODES['blue']}{p}{COLOR_CODES['reset']}",
-                            f"from {COLOR_CODES['green']}'{self.labels[idx]}'{COLOR_CODES['reset']}",
-                            f"to {COLOR_CODES['green']}'{label}'{COLOR_CODES['reset']}",
-                        )
                     self.labels[idx] = label
                     updated_labels += 1
             else:  # 新图片
@@ -214,6 +220,49 @@ class ImageDBCCIP:
         self.labels.extend(new_labels)
 
         log_info(f"增加了 {len(new_paths)} 张新图片，更新了 {updated_labels} 个标签。")
+
+        return True
+
+    def deduplicate(self, name: str) -> bool:
+        """基于文件hash去重仓库中的重复图片，如果标签与记录不符输出提示手动处理"""
+        self.load(name)
+        assert self.repo_path is not None
+        assert self.features is not None
+
+        image_paths, labels = self.scan_imgs_with_label(self.repo_path)
+
+        @dataclass
+        class HashIndexInfo:
+            label: str
+            hit: int = 0
+
+        hash_index = {h: HashIndexInfo(label=self.labels[i]) for i, h in enumerate(self.hashes)}
+
+        for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="扫描并同步索引"):
+            h = compute_file_hash(p)
+
+            if h in hash_index:  # 已存在索引中
+                index_info = hash_index[h]
+
+                if index_info.label != label:
+                    cprint_fast(
+                        [
+                            "发现与数据库存储标签不符的图片（",
+                            (index_info.label, "green"),
+                            "!=",
+                            (label, "red"),
+                            "）：",
+                            (str(p), "yellow"),
+                        ],
+                        sep="",
+                    )
+                    continue
+
+                index_info.hit += 1
+
+                if index_info.hit > 1:
+                    p.unlink()
+                    cprint_fast(["删除重复图片:", (str(p), "red")])
 
         return True
 
