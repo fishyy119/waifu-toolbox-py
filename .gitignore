@@ -1,5 +1,6 @@
 database/**/*.npz
 database/**/*.pkl
+profile*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

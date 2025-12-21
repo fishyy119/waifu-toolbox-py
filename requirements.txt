@@ -1,5 +1,9 @@
-dghs-imgutils==0.19.0
+dghs-imgutils==0.19.0  # 各种特征提取
 onnxruntime==1.20.0  # gpu运行报错可尝试锁定该版本
+umap-learn==0.5.9  # 用于降维排序
 
 # GPU支持版本
 # dghs-imgutils[gpu]
+
+# 性能分析
+# line-profiler==5.0.0

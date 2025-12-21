@@ -1,8 +1,10 @@
 import shutil
+import warnings
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 import numpy as np
+import umap
 from imgutils.metrics import lpips_difference, lpips_extract_feature
 from numpy.typing import NDArray
 from scipy.sparse.csgraph import minimum_spanning_tree
@@ -20,8 +22,11 @@ CACHE_DIR.mkdir(exist_ok=True, parents=True)
 def mst_tsp_order(D: NDArray[np.float32]) -> List[int]:
     """
     使用 MST 近似 TSP 得到图片排序
+    （这种方法没有考虑优先簇内）
+
     Args:
         D: N x N 感知距离矩阵
+
     Returns:
         order: 图片索引的一维序列，使相似图片相邻
     """
@@ -58,6 +63,32 @@ def mst_tsp_order(D: NDArray[np.float32]) -> List[int]:
     return order
 
 
+def umap_order(
+    D: NDArray[np.float32],
+    n_neighbors: int = 10,
+    min_dist: float = 0.0,
+) -> List[int]:
+    warnings.filterwarnings(
+        "ignore",
+        message="using precomputed metric; inverse_transform will be unavailable",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message="n_jobs value .* overridden .* random_state",
+    )
+
+    reducer = umap.UMAP(
+        n_components=1,
+        metric="precomputed",
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        random_state=42,  # 固定种子会禁用并行
+    )
+    embedding = cast(np.ndarray, reducer.fit_transform(D)).reshape(-1)
+    order = np.argsort(embedding)
+    return order.tolist()
+
+
 def save_lpips_chunk(chunk_idx: int, features: List) -> None:
     path = CACHE_DIR / f"chunk_{chunk_idx:05d}.npz"
     arr = np.empty(len(features), dtype=object)
@@ -91,7 +122,8 @@ def compute_lpips_distance_matrix(images: List) -> NDArray[np.float32]:
             for j in range(i, N):
                 diff = lpips_difference(images[i], images[j])
                 D[i, j] = D[j, i] = diff
-                pbar.update(1)
+
+            pbar.update(N - i)
 
     return D
 
@@ -163,7 +195,7 @@ def compute_lpips_distance_matrix_cache() -> NDArray[np.float32]:
                             gj = offset_j + j
                             diff = lpips_difference(fi, feats_j[j])
                             D[gi, gj] = D[gj, gi] = diff
-                            pbar.update(1)
+                        pbar.update(size_i - i)
                 else:
                     # chunk 间：全矩阵
                     for i in range(size_i):
@@ -173,7 +205,7 @@ def compute_lpips_distance_matrix_cache() -> NDArray[np.float32]:
                             gj = offset_j + j
                             diff = lpips_difference(fi, feats_j[j])
                             D[gi, gj] = D[gj, gi] = diff
-                            pbar.update(1)
+                        pbar.update(size_j)
 
                 # 立即释放
                 del feats_j
@@ -264,11 +296,19 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -
 
             D = compute_lpips_distance_matrix(buf_features)
 
-        order = mst_tsp_order(D)
+        # order = mst_tsp_order(D)
+        order = umap_order(D)
 
-        # 根据 order 重命名图片
-        for rank, idx in enumerate(order, start=1):
+        # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
+        temp_paths: List[Path] = []
+        for idx in order:
             old_path = image_paths[idx]
+            temp_path = old_path.with_name(f"__temp_{old_path.name}")
+            old_path.rename(temp_path)
+            temp_paths.append(temp_path)
+
+        for rank, idx in enumerate(order):
+            old_path = temp_paths[rank]
             new_path = old_path.with_name(f"{unit.name}_{rank:04d}{old_path.suffix}")
             old_path.rename(new_path)
 
