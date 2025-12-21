@@ -10,6 +10,7 @@ from tqdm import tqdm
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.console import COLOR_CODES, log_info
 from ..utils.feature import get_image_features_use_cache
+from ..utils.image import IMG_EXTS
 
 DB_ROOT = Path(__file__).parents[2] / "database/ccip"
 DB_ROOT.mkdir(exist_ok=True)
@@ -122,7 +123,7 @@ class ImageDBCCIP:
 
     @staticmethod
     def scan_imgs_with_label(repo_path: Path) -> Tuple[List[Path], List[str]]:
-        exts = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif")
+        exts = IMG_EXTS
         image_paths: list[Path] = []
         labels: list[str] = []
 
@@ -204,7 +205,7 @@ class ImageDBCCIP:
                 return False
             return True
 
-        new_features, _ = get_image_features_use_cache(paths_and_hashes=(new_paths, new_hashes))
+        new_features, _ = get_image_features_use_cache("ccip", paths_and_hashes=(new_paths, new_hashes))
 
         # 更新索引
         self.features = np.concatenate([self.features, np.stack(new_features, axis=0)], axis=0)
@@ -236,7 +237,7 @@ class ImageDBCCIP:
         if not valid_paths:
             return False
 
-        features, _ = get_image_features_use_cache(paths_and_hashes=(valid_paths, hashes))
+        features, _ = get_image_features_use_cache("ccip", paths_and_hashes=(valid_paths, hashes))
 
         # 写入索引
         self.features = np.stack(features, axis=0)

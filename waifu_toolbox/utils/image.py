@@ -7,6 +7,7 @@ from PIL import Image
 from PIL.Image import Image as ImageType
 
 warnings.filterwarnings("ignore", "Corrupt EXIF data")
+IMG_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp")
 
 
 def load_image(path: Path, max_size: int | Tuple[int, int] = 256) -> ImageType:
@@ -36,7 +37,7 @@ def load_images_from_folder(
         images: ImageType 列表
         file_paths: 对应路径列表
     """
-    exts = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif")
+    exts = IMG_EXTS
     all_groups: List[List[Path]] = []
 
     # 收集所有子目录和根目录的图片

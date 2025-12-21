@@ -11,7 +11,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 from tqdm import tqdm
 
 from ..db.cache import CACHE_ROOT
-from ..utils.image import load_image
+from ..utils.image import IMG_EXTS, load_image
 
 CACHE_DIR = CACHE_ROOT / "lpips"
 if CACHE_DIR.exists():
@@ -258,7 +258,7 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -
         - 排序单元是每个目录，不递归
     """
     sort_units = get_sort_units(images_root)
-    exts = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif")
+    exts = IMG_EXTS
     for unit in tqdm(sort_units, desc="排序图片", unit="folder"):
         image_paths: List[Path] = []
         for ext in exts:
