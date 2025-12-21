@@ -15,7 +15,13 @@ python -m waifu_toolbox.cli repo update -n "仓库名" --deduplicate  # 基于�
 python -m waifu_toolbox.cli repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
 
 python -m waifu_toolbox.cli repo info -n "仓库名"  # 查询仓库信息
+
+python -m waifu_toolbox.cli repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
 ```
+
+> flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。
+>
+> 扁平化后，将在仓库同级处生成 `_{repo_name}_flat` 文件夹（在开始扁平化前其会被先**清空**），其中仅保留一级子目录，扁平化不涉及重命名操作
 
 ## Classify
 

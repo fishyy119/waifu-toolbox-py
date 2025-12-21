@@ -6,6 +6,7 @@ from .db.operations import (
     change_repo_path,
     create_repo,
     deduplicate_repo,
+    flatten_repo,
     purge_repo,
     show_repo_info,
     update_repo,
@@ -52,6 +53,10 @@ def main():
     # -------- info --------
     repo_info = repo_subparsers.add_parser("info", help="Show repository information")
     repo_info.add_argument("-n", "--name", required=True, help="Repository name")
+
+    # -------- flatten --------
+    repo_flatten = repo_subparsers.add_parser("flatten", help="Flatten the repository structure")
+    repo_flatten.add_argument("-n", "--name", required=True, help="Repository name")
 
     # ========================
     # classify 子命令
@@ -117,6 +122,9 @@ def main():
                 change_repo_path(args.name, new_path=args.set_path)
             else:
                 update_repo(args.name)
+
+        elif args.repo_command == "flatten":
+            flatten_repo(args.name)
 
 
 if __name__ == "__main__":
