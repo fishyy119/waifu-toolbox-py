@@ -273,7 +273,7 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
     """
     sort_units = get_sort_units(images_root)
     exts = IMG_EXTS
-    for unit in tqdm(sort_units, desc="排序图片", unit="folder"):
+    for unit in (pbar_root := tqdm(sort_units, desc="排序图片", unit="folder")):
         image_paths: List[Path] = []
         for ext in exts:
             image_paths.extend(list(unit.glob(ext)))
@@ -284,6 +284,8 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
         if has_uniform_prefix(image_paths) and avoid_sorted:
             # 已排序目录，跳过
             continue
+
+        pbar_root.set_postfix_str(unit.name)
 
         chunk_size = int((memory_limit / 1024) * 50)
         use_cache = chunk_size * 2 <= len(image_paths)
