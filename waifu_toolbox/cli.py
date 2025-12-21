@@ -80,6 +80,7 @@ def main():
     sort_parser.add_argument(
         "-m", "--memory-limit", type=int, default=2048, help="Memory limit in MB (default 2048 for 200 images)"
     )
+    sort_parser.add_argument("--avoid-sorted", action="store_true", help="Avoid sorting already sorted directories")
 
     args = parser.parse_args()
 
@@ -94,7 +95,7 @@ def main():
     elif args.command == "sort":
         from .core.sort import sort_images_by_perceptual_similarity
 
-        sort_images_by_perceptual_similarity(args.dir, args.memory_limit)
+        sort_images_by_perceptual_similarity(args.dir, args.memory_limit, args.avoid_sorted)
 
     elif args.command == "repo":
         if args.repo_command == "create":

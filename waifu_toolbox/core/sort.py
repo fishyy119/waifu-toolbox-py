@@ -14,9 +14,6 @@ from ..db.cache import CACHE_ROOT
 from ..utils.image import IMG_EXTS, load_image
 
 CACHE_DIR = CACHE_ROOT / "lpips"
-if CACHE_DIR.exists():
-    shutil.rmtree(CACHE_DIR)
-CACHE_DIR.mkdir(exist_ok=True, parents=True)
 
 
 def mst_tsp_order(D: NDArray[np.float32]) -> List[int]:
@@ -242,13 +239,30 @@ def get_sort_units(root: Path) -> List[Path]:
     return sort_units
 
 
-def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -> None:
+def has_uniform_prefix(files: List[Path]) -> bool:
+    """
+    判断文件列表是否都具有相同前缀
+    前缀定义为文件名中到第一个下划线为止的部分
+    """
+    if not files:
+        return True  # 空列表视为统一
+
+    def get_prefix(f: Path) -> str:
+        name = f.stem
+        return name.split("_")[0]
+
+    prefixes = {get_prefix(f) for f in files}
+    return len(prefixes) == 1  # 只有一个前缀说明统一
+
+
+def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, avoid_sorted: bool) -> None:
     """
     根据感知相似度对图片进行排序，使得相似图片相邻
 
     Args:
         images_root: 图片文件夹路径
         memory_limit: 内存限制（MB）
+        avoid_sorted: 避免对已排序目录进行排序
 
     Returns:
         order: 图片索引的一维序列，使相似图片相邻
@@ -264,7 +278,11 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -
         for ext in exts:
             image_paths.extend(list(unit.glob(ext)))
 
-        if not image_paths:
+        if len(image_paths) <= 2:
+            continue
+
+        if has_uniform_prefix(image_paths) and avoid_sorted:
+            # 已排序目录，跳过
             continue
 
         chunk_size = int((memory_limit / 1024) * 50)
@@ -273,6 +291,10 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -
         buf_features = []
 
         if use_cache:
+            if CACHE_DIR.exists():
+                shutil.rmtree(CACHE_DIR)
+            CACHE_DIR.mkdir(exist_ok=True, parents=True)
+
             with tqdm(total=len(image_paths), desc="提取 LPIPS 特征", unit="img", leave=False) as pbar:
                 for chunk_start in range(0, len(image_paths), chunk_size):
                     for p in image_paths[chunk_start : chunk_start + chunk_size]:
@@ -297,7 +319,11 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int) -
             D = compute_lpips_distance_matrix(buf_features)
 
         # order = mst_tsp_order(D)
-        order = umap_order(D)
+        if len(image_paths) < 200:
+            n_neighbors = min(10, max(2, len(image_paths) // 2))
+        else:
+            n_neighbors = 20
+        order = umap_order(D, n_neighbors=n_neighbors)
 
         # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
         temp_paths: List[Path] = []

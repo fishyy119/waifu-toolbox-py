@@ -44,6 +44,7 @@ sort 命令用于基于感知差异的图片排序，其会对每个包含图片
 ```shell
 python -m waifu_toolbox.cli sort -d "目标目录"
 python -m waifu_toolbox.cli sort -d "目标目录" -m 1024  # 限制内存开销为1024MB
+python -m waifu_toolbox.cli sort -d "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 ```
 
 > [!NOTE]
