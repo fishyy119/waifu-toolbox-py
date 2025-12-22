@@ -40,15 +40,14 @@ def main():
     # -------- update --------
     repo_update = repo_subparsers.add_parser("update", help="Update an existing repository")
     repo_update.add_argument("-n", "--name", required=True, help="Repository name")
-    repo_update.add_argument(
+    group = repo_update.add_mutually_exclusive_group()
+    group.add_argument(
         "--purge", action="store_true", help="Remove images from the repository index that no longer exist on disk"
     )
-    repo_update.add_argument(
+    group.add_argument(
         "--deduplicate", action="store_true", help="Deduplicate images in the repository based on file hash"
     )
-    repo_update.add_argument(
-        "--set-path", type=Path, default=None, help="Set or change the root path of the repository"
-    )
+    group.add_argument("--set-path", type=Path, default=None, help="Set or change the root path of the repository")
 
     # -------- info --------
     repo_info = repo_subparsers.add_parser("info", help="Show repository information")
@@ -64,16 +63,13 @@ def main():
     classify_parser = subparsers.add_parser(
         "classify", help="Classify images based on labeled repository and CCIP clustering"
     )
-    classify_parser.add_argument(
-        "-r", "--repo", type=str, required=False, default=None, help="Name of the labeled repository"
-    )
-    classify_parser.add_argument(
-        "-w", "--wait-classify", type=Path, required=True, help="Path to root folder of images to classify"
-    )
+    classify_parser.add_argument("wait_classify", type=Path, help="Path to root folder of images to classify")
+    group = classify_parser.add_mutually_exclusive_group()
+    group.add_argument("-r", "--repo", type=str, required=False, default=None, help="Name of the labeled repository")
     classify_parser.add_argument(
         "-n", "--num-references", type=int, default=20, help="Number of reference images to use per category"
     )
-    classify_parser.add_argument(
+    group.add_argument(
         "--inplace", action="store_true", help="If just cluster, the report will be saved in the original folder"
     )
 
@@ -81,11 +77,9 @@ def main():
     # sort 子命令
     # ========================
     sort_parser = subparsers.add_parser(
-        "sort", help="Sort images in directories based on perceptual similarity (LPIPS + MST-TSP)"
+        "sort", help="Sort images in directories based on perceptual similarity (LPIPS + UMAP)"
     )
-    sort_parser.add_argument(
-        "-d", "--dir", type=Path, required=True, help="Root directory containing images or subdirectories to sort"
-    )
+    sort_parser.add_argument("dir", type=Path, help="Root directory containing images or subdirectories to sort")
     sort_parser.add_argument(
         "-m", "--memory-limit", type=int, default=2048, help="Memory limit in MB (default 2048 for 200 images)"
     )

@@ -7,16 +7,16 @@ Python 3.12 (dghs-imgutils 0.19.0)
 repo 命令用于构建仓库索引，分类功能（仓库的一级子目录被视为图片的标签，忽略处于根目录的图片）基于已经构建好的仓库。其位于项目根目录下的 `database` 中，相关命令如下：
 
 ```shell
-python -m waifu_toolbox.cli repo create -n "仓库名" -p "仓库路径"  # 创建仓库
+python cli.py repo create -n "仓库名" -p "仓库路径"  # 创建仓库
 
-python -m waifu_toolbox.cli repo update -n "仓库名"  # 更新索引
-python -m waifu_toolbox.cli repo update -n "仓库名" --purge  # 去除无效索引
-python -m waifu_toolbox.cli repo update -n "仓库名" --deduplicate  # 基于文件hash去重
-python -m waifu_toolbox.cli repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
+python cli.py repo update -n "仓库名"  # 更新索引
+python cli.py repo update -n "仓库名" --purge  # 去除无效索引
+python cli.py repo update -n "仓库名" --deduplicate  # 基于文件hash去重
+python cli.py repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
 
-python -m waifu_toolbox.cli repo info -n "仓库名"  # 查询仓库信息
+python cli.py repo info -n "仓库名"  # 查询仓库信息
 
-python -m waifu_toolbox.cli repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
+python cli.py repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
 ```
 
 > flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。
@@ -29,11 +29,11 @@ classify 命令用于将待整理图片分类，基于`dghs-imgutils`提供的 C
 
 ```shell
 # 参考分类好的仓库，分类待整理图片
-python -m waifu_toolbox.cli classify -r "仓库名" -w "待整理目录" -n 20
+python cli.py classify "待整理目录" -r "仓库名" -n 20
 
 # 仅进行角色聚类，无参考
-python -m waifu_toolbox.cli classify -w "待整理目录"
-python -m waifu_toolbox.cli classify -w "待整理目录" --inplace  # 原地整理
+python cli.py classify "待整理目录"
+python cli.py classify "待整理目录" --inplace  # 原地整理
 ```
 
 > [!NOTE]
@@ -49,9 +49,9 @@ python -m waifu_toolbox.cli classify -w "待整理目录" --inplace  # 原地整
 sort 命令用于基于感知差异的图片排序，其会对每个包含图片的子目录单独进行排序。基于`dghs-imgutils`提供的 LPIPS 模型
 
 ```shell
-python -m waifu_toolbox.cli sort -d "目标目录"
-python -m waifu_toolbox.cli sort -d "目标目录" -m 1024  # 限制内存开销为1024MB
-python -m waifu_toolbox.cli sort -d "目标目录" --avoid-sorted  # 跳过已排序的文件夹
+python cli.py sort "目标目录"
+python cli.py sort "目标目录" -m 1024  # 限制内存开销为1024MB
+python cli.py sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 ```
 
 > [!NOTE]
