@@ -9,9 +9,8 @@ from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
 
 from ..db.ccip_db import ImageDBCCIP
-from ..utils.console import log_info
+from ..utils.console import log_error, log_info
 from ..utils.feature import get_image_features_use_cache
-from ..utils.image import load_images_from_folder
 
 
 def _extract_features_to_list(features: NDArray | List[NDArray], indices: List[int] | None = None) -> List[NDArray]:
@@ -119,7 +118,11 @@ def classify_by_ccip(labeled_repo: str, to_classify_root: Path, num_references: 
             cluster_dir = report_root / category / f"{c_id2}"
             cluster_dir.mkdir(parents=True, exist_ok=True)
 
-            shutil.copy2(path, cluster_dir / path.name)
+            target_file = cluster_dir / path.name
+            if target_file.exists():
+                log_error(f"发现重复的文件名: {target_file.name}，请先手动处理")
+                exit(1)
+            shutil.copy2(path, target_file)
 
     log_info(f"report 保存路径: {report_root}")
 
@@ -128,11 +131,11 @@ def just_cluster_by_ccip(to_cluster_root: Path, inplace: bool = False) -> Tuple[
     """
     仅聚类，不参考仓库分类
     """
-    to_classify_images, to_cluster_paths = load_images_from_folder(to_cluster_root, tqdm_title="加载待分类图片")
-    if not to_classify_images:
+    to_cluster_features, to_cluster_paths = get_image_features_use_cache("ccip", img_folder_root=to_cluster_root)
+    if not to_cluster_paths:
         raise RuntimeError("未找到待分类图片")
 
-    mapping: List[int] = ccip_clustering(to_classify_images)  # pyright: ignore
+    mapping: List[int] = ccip_clustering(to_cluster_features)  # pyright: ignore
     # ? AttributeError: 'list' object has no attribute 'tolist'
     # 库的类型注解标错了。。。。
 
@@ -151,7 +154,12 @@ def just_cluster_by_ccip(to_cluster_root: Path, inplace: bool = False) -> Tuple[
     for path, cluster_id in zip(to_cluster_paths, mapping):
         cluster_dir = report_root / f"{cluster_id}"
         cluster_dir.mkdir(parents=True, exist_ok=True)
-        file_op(path, cluster_dir / path.name)
+
+        target_file = cluster_dir / path.name
+        if target_file.exists():
+            log_error(f"发现重复的文件名: {target_file.name}，请先手动处理")
+            exit(1)
+        file_op(path, target_file)
 
     log_info(f"report 保存路径: {report_root}")
 
