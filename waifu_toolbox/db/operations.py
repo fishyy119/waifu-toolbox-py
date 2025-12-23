@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+from rich import print
 from tqdm import tqdm
 
 from ..utils.console import log_error, log_info
@@ -39,9 +40,9 @@ def purge_repo(repo_name: str) -> None:
 def show_repo_info(repo_name: str) -> None:
     db = ImageDBCCIP()
     db.load(repo_name)
-    print(f"Repository:           {repo_name}")
+    print(f"Repository:           [magenta bold]{repo_name}[/magenta bold]")
     print(f"Number of images:     {db.size}")
-    print(f"Repository path:      {db.repo_path}")
+    print(f"Repository path:      [orchid]{db.repo_path}[/orchid]")
 
     assert db.db_path is not None, "repo_path 未设置"
     print("-------------------------------------")
@@ -77,9 +78,9 @@ def flatten_repo(repo_name: str) -> None:
 
                 target_file = target_dir / file.name
                 if target_file.exists():
-                    log_error(f"发现重复的文件名: {target_file.name}，请先手动处理后再进行扁平化操作")
+                    log_error(f"发现重复的文件名: [red]{target_file.name}[/red]，请先手动处理后再进行扁平化操作")
                     exit(1)
 
                 shutil.copy2(file, target_file)
 
-    log_info(f"输出文件夹已创建: {flat_dir}")
+    log_info(f"输出文件夹已创建: [orchid]{flat_dir}[/orchid]")

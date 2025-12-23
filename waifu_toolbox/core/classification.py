@@ -120,11 +120,11 @@ def classify_by_ccip(labeled_repo: str, to_classify_root: Path, num_references: 
 
             target_file = cluster_dir / path.name
             if target_file.exists():
-                log_error(f"发现重复的文件名: {target_file.name}，请先手动处理")
+                log_error(f"发现重复的文件名: [orchid]{target_file.name}[/orchid]，请先手动处理")
                 exit(1)
             shutil.copy2(path, target_file)
 
-    log_info(f"report 保存路径: {report_root}")
+    log_info(f"report 保存路径: [orchid]{report_root}[/orchid]")
 
 
 def just_cluster_by_ccip(to_cluster_root: Path, inplace: bool = False) -> Tuple[List[Path], List[int]]:
@@ -157,10 +157,10 @@ def just_cluster_by_ccip(to_cluster_root: Path, inplace: bool = False) -> Tuple[
 
         target_file = cluster_dir / path.name
         if target_file.exists():
-            log_error(f"发现重复的文件名: {target_file.name}，请先手动处理")
+            log_error(f"发现重复的文件名: [orchid]{target_file.name}[/orchid]，请先手动处理")
             exit(1)
         file_op(path, target_file)
 
-    log_info(f"report 保存路径: {report_root}")
+    log_info(f"report 保存路径: [orchid]{report_root}[/orchid]")
 
     return to_cluster_paths, mapping

@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
-from ..utils.console import cprint_fast, log_info
+from ..utils.console import log_info
 from ..utils.feature import get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 
@@ -245,15 +245,10 @@ class ImageDBCCIP:
                 index_info = hash_index[h]
 
                 if index_info.label != label:
-                    cprint_fast(
-                        [
-                            "发现与数据库存储标签不符的图片（",
-                            (index_info.label, "green"),
-                            "!=",
-                            (label, "red"),
-                            "）：",
-                            (str(p), "yellow"),
-                        ],
+                    log_info(
+                        f"发现与数据库存储标签不符的图片[green]",
+                        f"{index_info.label}[/green]!=[red]{label}[/red]",
+                        f"：[orchid]{p}[/orchid]",
                         sep="",
                     )
                     continue
@@ -262,7 +257,7 @@ class ImageDBCCIP:
 
                 if index_info.hit > 1:
                     p.unlink()
-                    cprint_fast(["删除重复图片:", (str(p), "red")])
+                    log_info(f"删除重复图片: [orchid]{p}[/orchid]")
 
         return True
 
