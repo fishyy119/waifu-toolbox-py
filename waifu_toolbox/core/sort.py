@@ -242,17 +242,13 @@ def get_sort_units(root: Path) -> List[Path]:
 def has_uniform_prefix(files: List[Path]) -> bool:
     """
     判断文件列表是否都具有相同前缀
-    前缀定义为文件名中到第一个下划线为止的部分
+    前缀需要与父目录的名字相同
     """
     if not files:
         return True  # 空列表视为统一
 
-    def get_prefix(f: Path) -> str:
-        name = f.stem
-        return name.split("_")[0]
-
-    prefixes = {get_prefix(f) for f in files}
-    return len(prefixes) == 1  # 只有一个前缀说明统一
+    parent_name = files[0].parent.name
+    return all(f.stem.startswith(parent_name) for f in files)
 
 
 def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, avoid_sorted: bool) -> None:
