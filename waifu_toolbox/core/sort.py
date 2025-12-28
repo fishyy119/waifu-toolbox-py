@@ -266,19 +266,24 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
     Notes:
         - 递归遍历所有子目录
         - 排序单元是每个目录，不递归
+        - 如果存在 .nosort 文件，该目录将被忽略
     """
     sort_units = get_sort_units(images_root)
     exts = IMG_EXTS
     for unit in (pbar_root := tqdm(sort_units, desc="排序图片", unit="folder")):
         image_paths: List[Path] = []
         for ext in exts:
-            image_paths.extend(list(unit.glob(ext)))
+            image_paths.extend(unit.glob(ext))
 
         if len(image_paths) <= 2:
             continue
 
         if has_uniform_prefix(image_paths) and avoid_sorted:
             # 已排序目录，跳过
+            continue
+
+        if (unit / ".nosort").exists():
+            # 如果存在 .nosort 文件，跳过排序
             continue
 
         pbar_root.set_postfix_str(unit.name)
