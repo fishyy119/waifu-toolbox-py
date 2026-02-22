@@ -44,12 +44,13 @@ def print_stats(stats: Dict[str, FileStat], title: str = "Statistics") -> None:
     console.print(table)
 
 
-def analyze_repo(repo_name: str, type: Literal["_extension", "_category"] | str = "_extension") -> None:
+def analyze_repo(repo_name: str, type: Literal["extension", "category"] = "extension", target: str = "") -> None:
     """
     type:
-        - "_extension": 按文件扩展名统计（保留符）
-        - "_category": 按一级子目录统计（保留符）
-        - 其他字符串：按指定子目录统计（可以任意拼接期望的子目录）
+        - "extension": 按文件扩展名统计（保留符）
+        - "category": 按一级子目录统计（保留符）
+
+    target: 根目录或任意拼接的子目录
     """
     # 虽然归属到 repo 命令下，但它只利用里面存储的仓库路径信息，不涉及数据库操作
     db = ImageDBCCIP()
@@ -57,29 +58,23 @@ def analyze_repo(repo_name: str, type: Literal["_extension", "_category"] | str 
     repo_root = db.repo_path
     assert repo_root is not None
 
+    analyze_root = repo_root / target if target else repo_root
+    if not (analyze_root.exists() and analyze_root.is_dir()):
+        log_error(f"Directory {analyze_root} does not exist or is not a directory")
+        exit(1)
+
     stats: Dict[str, FileStat] = {}
-    if type == "_extension":
+    if type == "extension":
         for ext in IMG_EXTS:
-            ext_files = list(repo_root.rglob(ext))
+            ext_files = list(analyze_root.rglob(ext))
             stat = FileStat.from_files(ext_files)
             stats[ext] = stat
 
-    elif type == "_category":
-        for category in repo_root.iterdir():
+    elif type == "category":
+        for category in analyze_root.iterdir():
             if category.is_dir():
                 cat_files = list(category.rglob("*"))
                 stat = FileStat.from_files(cat_files)
                 stats[category.name] = stat
 
-    else:
-        new_root = repo_root / type
-        if new_root.exists() and new_root.is_dir():
-            for ext in IMG_EXTS:
-                ext_files = list(new_root.rglob(ext))
-                stat = FileStat.from_files(ext_files)
-                stats[ext] = stat
-        else:
-            log_error(f"Directory {new_root} does not exist")
-            exit(1)
-
-    print_stats(stats, title=f"Repository Analysis: {repo_name} ({type})")
+    print_stats(stats, title=f"{type.capitalize()} Analysis: {repo_name}" + (f"/{target}" if target else ""))

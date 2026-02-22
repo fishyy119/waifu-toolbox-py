@@ -90,20 +90,14 @@ class RepoAnalyzeCommand(Command):
     @staticmethod
     def add_arguments(parser):
         parser.add_argument("-n", "--name", required=True, help="Repository name")
-        group = parser.add_mutually_exclusive_group(required=False)
-        group.add_argument("-c", "--category", action="store_true", help="Analyze category distribution")
-        group.add_argument("-d", "--dir", type=str, help="Analyze distribution in a specific subdirectory")
+        parser.add_argument("-c", "--category", action="store_true", help="Analyze category distribution")
+        parser.add_argument("-d", "--dir", type=str, default="", help="Analyze distribution in a specific subdirectory")
 
     @staticmethod
     def execute(args):
         from ..db.analysis import analyze_repo
 
-        if args.category:
-            analyze_repo(args.name, type="_category")
-        elif args.dir:
-            analyze_repo(args.name, type=args.dir)
-        else:
-            analyze_repo(args.name)
+        analyze_repo(args.name, type="category" if args.category else "extension", target=args.dir)
 
 
 # repo 二级子命令集合
