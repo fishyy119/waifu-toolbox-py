@@ -85,6 +85,16 @@ def main():
     )
     sort_parser.add_argument("--avoid-sorted", action="store_true", help="Avoid sorting already sorted directories")
 
+    # ========================
+    # Convert 子命令
+    # ========================
+    convert_parser = subparsers.add_parser("convert", help="Convert images between different formats")
+    convert_parser.add_argument("input", type=Path, help="Path to the input image or directory")
+    convert_parser.add_argument(
+        "--replace", "-r", action="store_true", help="Replace original files (use with caution)"
+    )
+    # convert_parser.add_argument("-f", "--format", type=str, choices=["jpg", "png", "webp"], help="Output image format")
+
     args = parser.parse_args()
 
     if args.command == "classify":
@@ -119,6 +129,11 @@ def main():
 
         elif args.repo_command == "flatten":
             flatten_repo(args.name)
+
+    elif args.command == "convert":
+        from .core.convert import convert_images
+
+        convert_images(args.input, args.replace)
 
 
 if __name__ == "__main__":

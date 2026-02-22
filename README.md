@@ -2,7 +2,7 @@
 
 Python 3.12 (dghs-imgutils 0.19.0)
 
-## repo
+## Repo
 
 repo 命令用于构建仓库索引，分类功能（仓库的一级子目录被视为图片的标签，忽略处于根目录的图片）基于已经构建好的仓库。其位于项目根目录下的 `database` 中，相关命令如下：
 
@@ -61,3 +61,12 @@ python cli.py sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 >
 > > 仅为数学计算，并非强制内存限制，实际内存开销可能会有一定出入
 >
+
+## Convert
+
+convert 命令用于将压缩性能较低的格式(bmp)转换为webp格式。
+
+```shell
+python cli.py convert "目标目录" # 将目标目录下的 bmp 图片转换为 webp 格式
+python cli.py convert "目标目录" -r # 替换原文件
+```
