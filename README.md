@@ -17,6 +17,10 @@ python cli.py repo update -n "仓库名" --set-path "仓库路径"  # 修改仓�
 python cli.py repo info -n "仓库名"  # 查询仓库信息
 
 python cli.py repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
+
+python cli.py repo analyze -n "仓库名"  # 分析文件类型占比
+python cli.py repo analyze -n "仓库名" -d "xxx/xxx"  # 分析指定子目录的文件类型占比
+python cli.py repo analyze -n "仓库名" -c  # 分析各分类的文件占比
 ```
 
 > flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。

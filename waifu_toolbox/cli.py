@@ -57,6 +57,13 @@ def main():
     repo_flatten = repo_subparsers.add_parser("flatten", help="Flatten the repository structure")
     repo_flatten.add_argument("-n", "--name", required=True, help="Repository name")
 
+    # -------- analyze --------
+    repo_analyze = repo_subparsers.add_parser("analyze", help="Analyze the repository")
+    repo_analyze.add_argument("-n", "--name", required=True, help="Repository name")
+    analyze_type = repo_analyze.add_mutually_exclusive_group(required=False)
+    analyze_type.add_argument("-c", "--category", action="store_true", help="Analyze category distribution")
+    analyze_type.add_argument("-d", "--dir", type=str, help="Analyze distribution in a specific subdirectory")
+
     # ========================
     # classify 子命令
     # ========================
@@ -129,6 +136,16 @@ def main():
 
         elif args.repo_command == "flatten":
             flatten_repo(args.name)
+
+        elif args.repo_command == "analyze":
+            from .db.analysis import analyze_repo
+
+            if args.category:
+                analyze_repo(args.name, type="_category")
+            elif args.dir:
+                analyze_repo(args.name, type=args.dir)
+            else:
+                analyze_repo(args.name)
 
     elif args.command == "convert":
         from .core.convert import convert_images
