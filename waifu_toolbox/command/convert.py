@@ -14,10 +14,17 @@ class ConvertCommand(Command):
     def add_arguments(parser):
         parser.add_argument("input", type=Path, help="Path to the input image or directory")
         parser.add_argument("-r", "--replace", action="store_true", help="Replace original files (use with caution)")
-        # parser.add_argument("-f", "--format", type=str, choices=["jpg", "png", "webp"], help="Output image format")
+        parser.add_argument(
+            "-f",
+            "--format",
+            type=str,
+            choices=["jpg", "png", "jpeg", "bmp"],
+            help="Format wait for convert",
+            default="bmp",
+        )
 
     @staticmethod
     def execute(args):
         from ..core.convert import convert_images
 
-        convert_images(args.input, args.replace)
+        convert_images(args.input, args.replace, source_format=args.format)

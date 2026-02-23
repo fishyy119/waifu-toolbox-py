@@ -69,9 +69,10 @@ python cli.py sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 
 ## Convert
 
-convert 命令用于将压缩性能较低的格式(bmp)转换为webp格式。
+convert 命令用于将图片转换为webp格式。
 
 ```shell
 python cli.py convert "目标目录" # 将目标目录下的 bmp 图片转换为 webp 格式
+python cli.py convert "目标目录" -f png # 转换 png 图片
 python cli.py convert "目标目录" -r # 替换原文件
 ```
