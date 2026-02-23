@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Literal
+from typing import Dict, List, Literal
 
 from rich import box
 from rich.console import Console
@@ -21,30 +21,59 @@ class FileStat:
         return cls(count=len(files), size=sum(f.stat().st_size for f in files))
 
 
-def print_stats(stats: Dict[str, FileStat], title: str = "Statistics") -> None:
-    console = Console()
-    table = Table(title=title, box=box.SIMPLE_HEAVY, show_lines=False)
-
-    table.add_column("Type", justify="left")
-    table.add_column("Count", justify="right")
-    table.add_column("Count %", justify="right")
-    table.add_column("Size (MB)", justify="right")
-    table.add_column("Size %", justify="right")
-
+def print_stats(
+    stats: Dict[str, FileStat],
+    title: str = "Statistics",
+    sort_key: Literal["count", "size", "none"] = "none",
+) -> None:
     total_count = sum(stat.count for stat in stats.values())
     total_size = sum(stat.size for stat in stats.values())
+    columns: List[Dict] = []
 
     for key, stat in stats.items():
         size_mb = stat.size / (1024 * 1024)
         count_ratio = stat.count / total_count if total_count else 0
         size_ratio = stat.size / total_size if total_size else 0
+        sort_value = {"count": stat.count, "size": size_mb, "none": 0}[sort_key]
 
-        table.add_row(key, f"{stat.count}", f"{count_ratio:.2%}", f"{size_mb:.2f}", f"{size_ratio:.2%}")
+        columns.append(
+            {
+                "Type": key,
+                "Count": f"{stat.count}",
+                "Count %": f"{count_ratio:.2%}",
+                "Size (MB)": f"{size_mb:.2f}",
+                "Size %": f"{size_ratio:.2%}",
+                "sort_key": sort_value,
+            }
+        )
+
+    console = Console()
+    table = Table(title=title, box=box.SIMPLE_HEAVY, show_lines=False, show_footer=True)
+    table.add_column("Type", justify="left", footer="Total", style="bold")
+    table.add_column("Count", justify="right", footer=f"{total_count}")
+    table.add_column("Count %", justify="right", footer="100.00%" if total_count else "0.00%")
+    table.add_column("Size (MB)", justify="right", footer=f"{total_size / (1024 * 1024):.2f}")
+    table.add_column("Size %", justify="right", footer="100.00%" if total_size else "0.00%")
+
+    columns.sort(key=lambda x: x["sort_key"], reverse=True)
+    for col in columns:
+        table.add_row(
+            col["Type"],
+            col["Count"],
+            col["Count %"],
+            col["Size (MB)"],
+            col["Size %"],
+        )
 
     console.print(table)
 
 
-def analyze_repo(repo_name: str, type: Literal["extension", "category"] = "extension", target: str = "") -> None:
+def analyze_repo(
+    repo_name: str,
+    type: Literal["extension", "category"] = "extension",
+    target: str = "",
+    sort_key: Literal["count", "size", "none"] = "none",
+) -> None:
     """
     type:
         - "extension": 按文件扩展名统计（保留符）
@@ -77,4 +106,8 @@ def analyze_repo(repo_name: str, type: Literal["extension", "category"] = "exten
                 stat = FileStat.from_files(cat_files)
                 stats[category.name] = stat
 
-    print_stats(stats, title=f"{type.capitalize()} Analysis: {repo_name}" + (f"/{target}" if target else ""))
+    print_stats(
+        stats,
+        title=f"{type.capitalize()} Analysis: {repo_name}" + (f"/{target}" if target else ""),
+        sort_key=sort_key,
+    )

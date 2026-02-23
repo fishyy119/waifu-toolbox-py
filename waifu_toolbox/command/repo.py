@@ -92,12 +92,20 @@ class RepoAnalyzeCommand(Command):
         parser.add_argument("-n", "--name", required=True, help="Repository name")
         parser.add_argument("-c", "--category", action="store_true", help="Analyze category distribution")
         parser.add_argument("-d", "--dir", type=str, default="", help="Analyze distribution in a specific subdirectory")
+        parser.add_argument(
+            "-s", "--sort", choices=["count", "size", "none"], default="none", help="Sort by count or size"
+        )
 
     @staticmethod
     def execute(args):
         from ..db.analysis import analyze_repo
 
-        analyze_repo(args.name, type="category" if args.category else "extension", target=args.dir)
+        analyze_repo(
+            args.name,
+            type="category" if args.category else "extension",
+            target=args.dir,
+            sort_key=args.sort,
+        )
 
 
 # repo 二级子命令集合
