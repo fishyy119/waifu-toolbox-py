@@ -47,13 +47,14 @@ def get_image_features_use_cache(
         else:
             extract_quene.append((img_idx, load_image(img_path)))
             features.append(None)  # 占位符
+            tqdm_feature.update(0.1)
 
     # 统一提取速度更快
     for img_idx, img in extract_quene:
         feature = ccip_extract_feature(img)
         features[img_idx] = feature
         cache.set(feature_name, img_hashes[img_idx], feature)
-        tqdm_feature.update(1)
+        tqdm_feature.update(0.9)
 
     tqdm_feature.close()
     cache.save_cache(feature_name)
