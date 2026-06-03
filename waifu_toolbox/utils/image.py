@@ -42,7 +42,7 @@ def load_images_from_folder(
 
     # 收集所有子目录和根目录的图片
     # 根目录视为特殊子目录
-    root_files = []
+    root_files: List[Path] = []
     for ext in exts:
         root_files.extend(folder.glob(ext))
     if root_files:
@@ -52,7 +52,7 @@ def load_images_from_folder(
     for subdir in folder.iterdir():
         if not subdir.is_dir():
             continue
-        sub_files = []
+        sub_files: List[Path] = []
         for ext in exts:
             sub_files.extend(subdir.rglob(ext))
         if sub_files:

@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def compute_file_hash(path: Path, algo="sha1") -> bytes:
+def compute_file_hash(path: Path, algo: str = "sha1") -> bytes:
     h = hashlib.new(algo)
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):

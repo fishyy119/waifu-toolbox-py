@@ -1,8 +1,10 @@
+# pyright: standard
+
 import pickle
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -125,8 +127,8 @@ class ImageDBCCIP:
     @staticmethod
     def scan_imgs_with_label(repo_path: Path) -> Tuple[List[Path], List[str]]:
         exts = IMG_EXTS
-        image_paths: list[Path] = []
-        labels: list[str] = []
+        image_paths: List[Path] = []
+        labels: List[str] = []
 
         for category_dir in repo_path.iterdir():
             if not category_dir.is_dir():
@@ -147,15 +149,15 @@ class ImageDBCCIP:
         assert self.features is not None
 
         image_paths, _ = self.scan_imgs_with_label(self.repo_path)
-        existing_hashes = set()
+        existing_hashes: Set[bytes] = set()
 
         for p in tqdm(image_paths, desc="计算现有文件哈希"):
             h = compute_file_hash(p)
             existing_hashes.add(h)
 
         # 要考虑数据库内部记录的hashes有重复的情况
-        seen = set()
-        keep_indices = []
+        seen: Set[bytes] = set()
+        keep_indices: List[int] = []
 
         for i, h in enumerate(self.hashes):
             if h not in existing_hashes:
@@ -186,11 +188,11 @@ class ImageDBCCIP:
 
         image_paths, labels = self.scan_imgs_with_label(self.repo_path)
 
-        hash_to_index = {h: i for i, h in enumerate(self.hashes)}
+        hash_to_index: Dict[bytes, int] = {h: i for i, h in enumerate(self.hashes)}
         updated_labels = 0
-        new_hashes: list[bytes] = []
-        new_paths: list[Path] = []
-        new_labels: list[str] = []
+        new_hashes: List[bytes] = []
+        new_paths: List[Path] = []
+        new_labels: List[str] = []
 
         for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="扫描并同步索引"):
             h = compute_file_hash(p)
@@ -236,7 +238,9 @@ class ImageDBCCIP:
             label: str
             hit: int = 0
 
-        hash_index = {h: HashIndexInfo(label=self.labels[i]) for i, h in enumerate(self.hashes)}
+        hash_index: Dict[bytes, HashIndexInfo] = {
+            h: HashIndexInfo(label=self.labels[i]) for i, h in enumerate(self.hashes)
+        }
 
         for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="扫描并同步索引"):
             h = compute_file_hash(p)
@@ -266,9 +270,9 @@ class ImageDBCCIP:
         image_paths, labels = self.scan_imgs_with_label(path)
 
         # 计算 hash
-        hashes: list[bytes] = []
-        valid_paths: list[Path] = []
-        valid_labels: list[str] = []
+        hashes: List[bytes] = []
+        valid_paths: List[Path] = []
+        valid_labels: List[str] = []
 
         for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="计算文件哈希"):
             h = compute_file_hash(p)

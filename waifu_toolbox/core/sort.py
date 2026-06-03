@@ -1,3 +1,5 @@
+# pyright: standard
+
 import shutil
 import warnings
 from pathlib import Path

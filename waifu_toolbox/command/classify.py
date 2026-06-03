@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from .base import Command
@@ -11,7 +12,7 @@ class ClassifyCommand(Command):
     help = "Classify images based on labeled repository and CCIP clustering"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser):
         parser.add_argument("wait_classify", type=Path, help="Path to root folder of images to classify")
         group = parser.add_mutually_exclusive_group()
         group.add_argument("-r", "--repo", type=str, default=None, help="Name of the labeled repository")
@@ -21,7 +22,7 @@ class ClassifyCommand(Command):
         )
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace):
         if args.repo is None:
             from ..core.classification import just_cluster_by_ccip
 

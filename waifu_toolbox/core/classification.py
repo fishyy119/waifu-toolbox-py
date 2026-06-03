@@ -1,3 +1,5 @@
+# pyright: standard
+
 import shutil
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field

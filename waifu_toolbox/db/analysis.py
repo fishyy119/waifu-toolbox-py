@@ -17,8 +17,18 @@ class FileStat:
     size: int = 0
 
     @classmethod
-    def from_files(cls, files: list[Path]) -> "FileStat":
+    def from_files(cls, files: List[Path]) -> "FileStat":
         return cls(count=len(files), size=sum(f.stat().st_size for f in files))
+
+
+@dataclass
+class StatRow:
+    type_name: str
+    count: str
+    count_ratio: str
+    size_mb: str
+    size_ratio: str
+    sort_value: float
 
 
 def print_stats(
@@ -28,7 +38,7 @@ def print_stats(
 ) -> None:
     total_count = sum(stat.count for stat in stats.values())
     total_size = sum(stat.size for stat in stats.values())
-    columns: List[Dict] = []
+    columns: List[StatRow] = []
 
     for key, stat in stats.items():
         size_mb = stat.size / (1024 * 1024)
@@ -37,14 +47,14 @@ def print_stats(
         sort_value = {"count": stat.count, "size": size_mb, "none": 0}[sort_key]
 
         columns.append(
-            {
-                "Type": key,
-                "Count": f"{stat.count}",
-                "Count %": f"{count_ratio:.2%}",
-                "Size (MB)": f"{size_mb:.2f}",
-                "Size %": f"{size_ratio:.2%}",
-                "sort_key": sort_value,
-            }
+            StatRow(
+                type_name=key,
+                count=f"{stat.count}",
+                count_ratio=f"{count_ratio:.2%}",
+                size_mb=f"{size_mb:.2f}",
+                size_ratio=f"{size_ratio:.2%}",
+                sort_value=sort_value,
+            )
         )
 
     console = Console()
@@ -55,14 +65,14 @@ def print_stats(
     table.add_column("Size (MB)", justify="right", footer=f"{total_size / (1024 * 1024):.2f}")
     table.add_column("Size %", justify="right", footer="100.00%" if total_size else "0.00%")
 
-    columns.sort(key=lambda x: x["sort_key"], reverse=True)
+    columns.sort(key=lambda row: row.sort_value, reverse=True)
     for col in columns:
         table.add_row(
-            col["Type"],
-            col["Count"],
-            col["Count %"],
-            col["Size (MB)"],
-            col["Size %"],
+            col.type_name,
+            col.count,
+            col.count_ratio,
+            col.size_mb,
+            col.size_ratio,
         )
 
     console.print(table)

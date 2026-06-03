@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 from .base import Command
@@ -11,7 +12,7 @@ class ConvertCommand(Command):
     help = "Convert images between different formats"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser):
         parser.add_argument("input", type=Path, help="Path to the input image or directory")
         parser.add_argument("-r", "--replace", action="store_true", help="Replace original files (use with caution)")
         parser.add_argument(
@@ -24,7 +25,7 @@ class ConvertCommand(Command):
         )
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace):
         from ..core.convert import convert_images
 
         convert_images(args.input, args.replace, source_format=args.format)

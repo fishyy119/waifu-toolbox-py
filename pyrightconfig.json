@@ -1,6 +1,9 @@
 {
     "pythonVersion": "3.12",
     "typeCheckingMode": "standard",
+    "strict": [
+        "waifu_toolbox"
+    ],
     "reportUnusedImport": "warning",
     "stubPath": "./typings" // 默认值
 }

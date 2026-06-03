@@ -8,7 +8,7 @@ from waifu_toolbox.core import sort as sort_module
 
 
 def main(images_root: Path):
-    sort_module.sort_images_by_perceptual_similarity(images_root, 2048)
+    sort_module.sort_images_by_perceptual_similarity(images_root, 2048, False)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import argparse
+from typing import Type, TypeAlias
 
 
 # -----------------------------
@@ -17,3 +18,6 @@ class Command:
     def execute(args: argparse.Namespace):
         """子类实现：执行逻辑"""
         pass
+
+
+CommandType: TypeAlias = Type[Command]

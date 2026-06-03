@@ -1,6 +1,8 @@
+import argparse
 from pathlib import Path
+from typing import List
 
-from .base import Command
+from .base import Command, CommandType
 
 
 # ============================
@@ -11,12 +13,12 @@ class RepoCreateCommand(Command):
     help = "Create a new repository from a labeled folder"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
         parser.add_argument("-p", "--path", type=Path, required=True, help="Path to labeled image folder")
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         from ..db.operations import create_repo
 
         create_repo(args.name, args.path)
@@ -27,7 +29,7 @@ class RepoUpdateCommand(Command):
     help = "Update an existing repository"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
         group = parser.add_mutually_exclusive_group()
         group.add_argument("--purge", action="store_true", help="Remove images no longer on disk")
@@ -35,7 +37,7 @@ class RepoUpdateCommand(Command):
         group.add_argument("--set-path", type=Path, default=None, help="Set or change repository root path")
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         from ..db.operations import (
             change_repo_path,
             deduplicate_repo,
@@ -58,11 +60,11 @@ class RepoInfoCommand(Command):
     help = "Show repository information"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         from ..db.operations import show_repo_info
 
         show_repo_info(args.name)
@@ -73,11 +75,11 @@ class RepoFlattenCommand(Command):
     help = "Flatten the repository structure"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         from ..db.operations import flatten_repo
 
         flatten_repo(args.name)
@@ -88,7 +90,7 @@ class RepoAnalyzeCommand(Command):
     help = "Analyze the repository"
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
         parser.add_argument("-c", "--category", action="store_true", help="Analyze category distribution")
         parser.add_argument("-d", "--dir", type=str, default="", help="Analyze distribution in a specific subdirectory")
@@ -97,7 +99,7 @@ class RepoAnalyzeCommand(Command):
         )
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         from ..db.analysis import analyze_repo
 
         analyze_repo(
@@ -113,7 +115,7 @@ class RepoCommand(Command):
     name = "repo"
     help = "Manage feature repositories"
 
-    subcommands = [
+    subcommands: List[CommandType] = [
         RepoCreateCommand,
         RepoUpdateCommand,
         RepoInfoCommand,
@@ -122,14 +124,14 @@ class RepoCommand(Command):
     ]
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         subparsers = parser.add_subparsers(title="repo commands", dest="repo_command", required=True)
         for cmd_cls in RepoCommand.subcommands:
             sub_parser = subparsers.add_parser(cmd_cls.name, help=cmd_cls.help)
             cmd_cls.add_arguments(sub_parser)
 
     @staticmethod
-    def execute(args):
+    def execute(args: argparse.Namespace) -> None:
         for cmd_cls in RepoCommand.subcommands:
             if args.repo_command == cmd_cls.name:
                 cmd_cls.execute(args)
