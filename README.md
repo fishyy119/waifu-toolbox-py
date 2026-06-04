@@ -2,26 +2,45 @@
 
 Python 3.12 (dghs-imgutils 0.19.0)
 
-## Repo
+## Install
 
-repo 命令用于构建仓库索引，分类功能（仓库的一级子目录被视为图片的标签，忽略处于根目录的图片）基于已经构建好的仓库。其位于项目根目录下的 `database` 中，相关命令如下：
+推荐使用 editable install：
 
 ```shell
-python cli.py repo create -n "仓库名" -p "仓库路径"  # 创建仓库
+pip install -e .
+```
 
-python cli.py repo update -n "仓库名"  # 更新索引
-python cli.py repo update -n "仓库名" --purge  # 去除无效索引
-python cli.py repo update -n "仓库名" --deduplicate  # 基于文件hash去重
-python cli.py repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
+安装后会提供两个命令入口：
 
-python cli.py repo info -n "仓库名"  # 查询仓库信息
+- `waifu`：推荐的简写命令
+- `waifu-toolbox`：完整命令别名
 
-python cli.py repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
+> [!NOTE]
+> 仓库索引和特征缓存统一存放到用户目录下的 `~/.waifu/database/`
+>
+> - CCIP 仓库索引：`~/.waifu/database/ccip/`
+> - 特征缓存：`~/.waifu/database/cache/`
 
-python cli.py repo analyze -n "仓库名"  # 分析文件类型占比
-python cli.py repo analyze -n "仓库名" -c  # 分析各分类的文件占比
-python cli.py repo analyze -n "仓库名" -s count  # 结果排序
-python cli.py repo analyze -n "仓库名" -d "xxx/xxx"  # 分析指定子目录
+## Repo
+
+repo 命令用于构建仓库索引，分类功能（仓库的一级子目录被视为图片的标签，忽略处于根目录的图片）基于已经构建好的仓库。相关命令如下：
+
+```shell
+waifu repo create -n "仓库名" -p "仓库路径"  # 创建仓库
+
+waifu repo update -n "仓库名"  # 更新索引
+waifu repo update -n "仓库名" --purge  # 去除无效索引
+waifu repo update -n "仓库名" --deduplicate  # 基于文件hash去重
+waifu repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
+
+waifu repo info -n "仓库名"  # 查询仓库信息
+
+waifu repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
+
+waifu repo analyze -n "仓库名"  # 分析文件类型占比
+waifu repo analyze -n "仓库名" -c  # 分析各分类的文件占比
+waifu repo analyze -n "仓库名" -s count  # 结果排序
+waifu repo analyze -n "仓库名" -d "xxx/xxx"  # 分析指定子目录
 ```
 
 > flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。
@@ -34,11 +53,11 @@ classify 命令用于将待整理图片分类，基于`dghs-imgutils`提供的 C
 
 ```shell
 # 参考分类好的仓库，分类待整理图片
-python cli.py classify "待整理目录" -r "仓库名" -n 20
+waifu classify "待整理目录" -r "仓库名" -n 20
 
 # 仅进行角色聚类，无参考
-python cli.py classify "待整理目录"
-python cli.py classify "待整理目录" --inplace  # 原地整理
+waifu classify "待整理目录"
+waifu classify "待整理目录" --inplace  # 原地整理
 ```
 
 > [!NOTE]
@@ -54,9 +73,9 @@ python cli.py classify "待整理目录" --inplace  # 原地整理
 sort 命令用于基于感知差异的图片排序，其会对每个包含图片的子目录单独进行排序。基于`dghs-imgutils`提供的 LPIPS 模型
 
 ```shell
-python cli.py sort "目标目录"
-python cli.py sort "目标目录" -m 1024  # 限制内存开销为1024MB
-python cli.py sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
+waifu sort "目标目录"
+waifu sort "目标目录" -m 1024  # 限制内存开销为1024MB
+waifu sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 ```
 
 > [!NOTE]
@@ -72,7 +91,7 @@ python cli.py sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 convert 命令用于将图片转换为webp格式。
 
 ```shell
-python cli.py convert "目标目录" # 将目标目录下的 bmp 图片转换为 webp 格式
-python cli.py convert "目标目录" -f png # 转换 png 图片
-python cli.py convert "目标目录" -r # 替换原文件
+waifu convert "目标目录" # 将目标目录下的 bmp 图片转换为 webp 格式
+waifu convert "目标目录" -f png # 转换 png 图片
+waifu convert "目标目录" -r # 替换原文件
 ```

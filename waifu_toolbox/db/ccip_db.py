@@ -10,13 +10,13 @@ import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 
+from ..paths import PATHS
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.console import log_info
 from ..utils.feature import get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 
-DB_ROOT = Path(__file__).parents[2] / "database/ccip"
-DB_ROOT.mkdir(exist_ok=True)
+DB_ROOT = PATHS.ccip_db_root
 
 
 class ImageDBCCIP:

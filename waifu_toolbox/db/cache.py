@@ -4,8 +4,9 @@ from typing import Any, Dict, Literal, Optional
 import numpy as np
 from numpy.typing import NDArray
 
-CACHE_ROOT = Path(__file__).parents[2] / "database/cache"
-CACHE_ROOT.mkdir(exist_ok=True, parents=True)
+from ..paths import PATHS
+
+CACHE_ROOT = PATHS.cache_root
 
 
 CCIP_Feature = NDArray[np.float32]

@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waifu-toolbox"
+version = "0.1.0"
+description = "CLI toolbox for building image repositories, classifying anime characters, sorting images, and converting formats."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "dghs-imgutils==0.19.0",
+    "onnxruntime==1.20.0",     # gpu运行报错可尝试锁定该版本
+    "umap-learn==0.5.9.post2", # 用于降维排序
+    "rich>=14,<15",
+]
+
+[project.optional-dependencies]
+dev = ["line-profiler"]
+
+[project.scripts]
+waifu = "waifu_toolbox.cli:main"
+waifu-toolbox = "waifu_toolbox.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["waifu_toolbox*"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+strict = ["waifu_toolbox"]
+reportUnusedImport = "warning"
+stubPath = "./typings"
