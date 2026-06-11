@@ -66,13 +66,12 @@ def get_image_features_use_cache(
         else:
             extract_queue.append(img_idx)
             features.append(None)  # 占位符
-            tqdm_feature.update(0.1)
 
     for img_idx in extract_queue:
         feature = extractor(img_paths[img_idx])
         features[img_idx] = feature
         cache.set(feature_name, img_hashes[img_idx], feature)
-        tqdm_feature.update(0.9)
+        tqdm_feature.update(1)
 
     tqdm_feature.close()
     cache.save_cache(feature_name)

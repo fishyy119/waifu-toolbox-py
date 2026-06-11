@@ -16,36 +16,53 @@ pip install -e .
 - `waifu-toolbox`：完整命令别名
 
 > [!NOTE]
-> 仓库索引和特征缓存统一存放到用户目录下的 `~/.waifu/database/`
+> 仓库索引和特征缓存统一存放到用户目录下的 `~/.waifu/database/waifu.db`（SQLite）
 >
-> - CCIP 仓库索引：`~/.waifu/database/ccip/`
-> - DreamSim 权重：`~/.waifu/database/cache/dreamsim_models/`
+> DreamSim 权重：`~/.waifu/dreamsim_models/`
 
 ## Repo
 
 repo 命令用于构建仓库索引，分类功能（仓库的一级子目录被视为图片的标签，忽略处于根目录的图片）基于已经构建好的仓库。相关命令如下：
 
 ```shell
-waifu repo create -n "仓库名" -p "仓库路径"  # 创建仓库
+# 创建仓库（默认只构建 hash 索引，可选提取特征）
+waifu repo create -n "仓库名" -p "仓库路径"
+waifu repo create -n "仓库名" -p "仓库路径" --ccip            # 同时提取 CCIP 特征
+waifu repo create -n "仓库名" -p "仓库路径" --dreamsim        # 同时提取 DreamSim 特征
+waifu repo create -n "仓库名" -p "仓库路径" --ccip --dreamsim # 同时提取两种特征
 
-waifu repo update -n "仓库名"  # 更新索引
-waifu repo update -n "仓库名" --purge  # 去除无效索引
-waifu repo update -n "仓库名" --deduplicate  # 基于文件hash去重
+# 更新索引（同步新增图片与标签变更，可选提取/补全特征）
+waifu repo update -n "仓库名" --ccip       # 同步索引并提取/补全 CCIP 特征
+waifu repo update -n "仓库名" --dreamsim   # 同步索引并提取/补全 DreamSim 特征
+waifu repo update -n "仓库名" --purge      # 去除无效索引
+waifu repo update -n "仓库名" --deduplicate  # 基于文件 hash 去重
 waifu repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
+waifu repo update -n "仓库名" --rename "新名"       # 重命名仓库
 
-waifu repo info -n "仓库名"  # 查询仓库信息
+waifu repo list                    # 列出所有仓库
+waifu repo info -n "仓库名"        # 查询仓库详细信息
 
-waifu repo flatten -n "仓库名"  # 将各分类的嵌套文件夹扁平化
+waifu repo flatten -n "仓库名"     # 将各分类的嵌套文件夹扁平化
 
-waifu repo analyze -n "仓库名"  # 分析文件类型占比
-waifu repo analyze -n "仓库名" -c  # 分析各分类的文件占比
-waifu repo analyze -n "仓库名" -s count  # 结果排序
+waifu repo analyze -n "仓库名"          # 分析文件类型占比
+waifu repo analyze -n "仓库名" -c       # 分析各分类的文件占比
+waifu repo analyze -n "仓库名" -s count # 结果排序
 waifu repo analyze -n "仓库名" -d "xxx/xxx"  # 分析指定子目录
 ```
 
 > flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。
 >
 > 扁平化后，将在仓库同级处生成 `_{repo_name}_flat` 文件夹（在开始扁平化前其会被先**清空**），其中仅保留一级子目录，扁平化不涉及重命名操作
+
+## Cache
+
+cache 命令用于管理特征缓存（存放于 `feature_cache` 表，按图片 hash 索引，与仓库无关）。
+
+```shell
+waifu cache clear              # 清空全部特征缓存
+waifu cache clear --ccip       # 仅清空 CCIP 特征缓存
+waifu cache clear --dreamsim   # 仅清空 DreamSim 特征缓存
+```
 
 ## Classify
 

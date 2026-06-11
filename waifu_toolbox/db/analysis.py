@@ -8,7 +8,7 @@ from rich.table import Table
 
 from ..utils.console import log_error
 from ..utils.image import IMG_EXTS
-from .ccip_db import ImageDBCCIP
+from .repo import ImageRepo
 
 
 @dataclass
@@ -92,7 +92,7 @@ def analyze_repo(
     target: 根目录或任意拼接的子目录
     """
     # 虽然归属到 repo 命令下，但它只利用里面存储的仓库路径信息，不涉及数据库操作
-    db = ImageDBCCIP()
+    db = ImageRepo()
     db.load(repo_name)
     repo_root = db.repo_path
     assert repo_root is not None

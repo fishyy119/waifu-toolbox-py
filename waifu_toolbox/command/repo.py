@@ -16,12 +16,14 @@ class RepoCreateCommand(Command):
     def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-n", "--name", required=True, help="Repository name")
         parser.add_argument("-p", "--path", type=Path, required=True, help="Path to labeled image folder")
+        parser.add_argument("--ccip", action="store_true", help="Extract CCIP features")
+        parser.add_argument("--dreamsim", action="store_true", help="Extract DreamSim features")
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
         from ..db.operations import create_repo
 
-        create_repo(args.name, args.path)
+        create_repo(args.name, args.path, extract_ccip=args.ccip, extract_dreamsim=args.dreamsim)
 
 
 class RepoUpdateCommand(Command):
@@ -35,6 +37,9 @@ class RepoUpdateCommand(Command):
         group.add_argument("--purge", action="store_true", help="Remove images no longer on disk")
         group.add_argument("--deduplicate", action="store_true", help="Deduplicate images by hash")
         group.add_argument("--set-path", type=Path, default=None, help="Set or change repository root path")
+        group.add_argument("--rename", type=str, default=None, help="Rename the repository")
+        parser.add_argument("--ccip", action="store_true", help="Extract/update CCIP features")
+        parser.add_argument("--dreamsim", action="store_true", help="Extract/update DreamSim features")
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
@@ -42,6 +47,7 @@ class RepoUpdateCommand(Command):
             change_repo_path,
             deduplicate_repo,
             purge_repo,
+            rename_repo,
             update_repo,
         )
 
@@ -51,8 +57,25 @@ class RepoUpdateCommand(Command):
             deduplicate_repo(args.name)
         elif args.set_path:
             change_repo_path(args.name, new_path=args.set_path)
+        elif args.rename:
+            rename_repo(args.name, args.rename)
         else:
-            update_repo(args.name)
+            update_repo(args.name, extract_ccip=args.ccip, extract_dreamsim=args.dreamsim)
+
+
+class RepoListCommand(Command):
+    name = "list"
+    help = "List all repositories"
+
+    @staticmethod
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
+        pass
+
+    @staticmethod
+    def execute(args: argparse.Namespace) -> None:
+        from ..db.operations import list_repos
+
+        list_repos()
 
 
 class RepoInfoCommand(Command):
@@ -118,6 +141,7 @@ class RepoCommand(Command):
     subcommands: List[CommandType] = [
         RepoCreateCommand,
         RepoUpdateCommand,
+        RepoListCommand,
         RepoInfoCommand,
         RepoFlattenCommand,
         RepoAnalyzeCommand,

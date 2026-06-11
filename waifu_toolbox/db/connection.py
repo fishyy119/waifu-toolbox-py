@@ -1,0 +1,92 @@
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+
+from ..paths import PATHS
+from ..utils.console import log_info
+
+DB_PATH: Path = PATHS.waifu_db
+
+SCHEMA_VERSION = 1
+
+_connection: sqlite3.Connection | None = None
+
+
+def get_connection() -> sqlite3.Connection:
+    global _connection
+    if _connection is None:
+        _connection = _open_and_init(DB_PATH)
+    return _connection
+
+
+def close_connection() -> None:
+    global _connection
+    if _connection is not None:
+        _connection.close()
+        _connection = None
+
+
+def _open_and_init(path: Path) -> sqlite3.Connection:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path))
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    _migrate_schema(conn)
+    return conn
+
+
+def _backup_database(conn: sqlite3.Connection, current_version: int) -> None:
+    """升级前自动备份数据库文件到"""
+    backup_dir = PATHS.db_backup_dir
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"{DB_PATH.stem}.v{current_version}.{timestamp}{DB_PATH.suffix}"
+    backup_path = backup_dir / backup_name
+
+    backup_conn = sqlite3.connect(str(backup_path))
+    conn.backup(backup_conn)
+    backup_conn.close()
+    log_info(f"数据库已备份: [orchid]{backup_path}[/orchid]")
+
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    current: int = conn.execute("PRAGMA user_version").fetchone()[0]
+
+    if current < SCHEMA_VERSION and current > 0:
+        _backup_database(conn, current)
+
+    if current < 1:
+        _init_v1(conn)
+
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    conn.commit()
+
+
+def _init_v1(conn: sqlite3.Connection) -> None:
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS repos (
+            repo_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            name      TEXT NOT NULL UNIQUE,
+            path      TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS images (
+            repo_id          INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+            hash             BLOB    NOT NULL,
+            label            TEXT    NOT NULL,
+            ccip_feature     BLOB,
+            dreamsim_feature BLOB,
+            UNIQUE (repo_id, hash)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_images_repo ON images(repo_id);
+        CREATE INDEX IF NOT EXISTS idx_images_hash ON images(hash);
+
+        CREATE TABLE IF NOT EXISTS feature_cache (
+            hash          BLOB    NOT NULL,
+            feature_type  TEXT    NOT NULL,
+            feature       BLOB    NOT NULL,
+            PRIMARY KEY (hash, feature_type)
+        );
+    """)

@@ -2,7 +2,14 @@ import argparse
 import random
 from typing import Dict, List
 
-from .command import ClassifyCommand, ConvertCommand, RepoCommand, SortCommand, CommandType
+from .command import (
+    CacheCommand,
+    ClassifyCommand,
+    CommandType,
+    ConvertCommand,
+    RepoCommand,
+    SortCommand,
+)
 
 random.seed(42)
 
@@ -15,7 +22,7 @@ def main():
     subparsers = parser.add_subparsers(title="subcommands", dest="command", required=True)
 
     # 注册所有一级命令
-    commands: List[CommandType] = [RepoCommand, ClassifyCommand, SortCommand, ConvertCommand]
+    commands: List[CommandType] = [RepoCommand, CacheCommand, ClassifyCommand, SortCommand, ConvertCommand]
     command_map: Dict[str, CommandType] = {}
     for cmd_cls in commands:
         sub_parser = subparsers.add_parser(cmd_cls.name, help=cmd_cls.help)

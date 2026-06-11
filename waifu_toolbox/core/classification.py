@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
 
-from ..db.ccip_db import ImageDBCCIP
+from ..db.repo import ImageRepo
 from ..utils.console import log_error, log_info
 from ..utils.feature import get_image_features_use_cache
 
@@ -39,11 +39,12 @@ def classify_by_ccip(labeled_repo: str, to_classify_root: Path, num_references: 
     # -----------------------------
     # 1. 加载已标注图片
     # -----------------------------
-    db = ImageDBCCIP(labeled_repo)
+    db = ImageRepo(labeled_repo)
+    db.load_features(ccip=True)
     db.sample(num_references)
 
     labeled_categories = db.labels
-    labeled_features = db.features
+    labeled_features = db.ccip_features
     labeled_hashes = db.hashes
     assert labeled_features is not None
     assert len(labeled_categories) == labeled_features.shape[0] == len(labeled_hashes)
