@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Dict, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,10 +9,8 @@ from ..paths import PATHS
 CACHE_ROOT = PATHS.cache_root
 
 
-CCIP_Feature = NDArray[np.float32]
-CacheName = Literal["ccip"]
-FeatureType = CCIP_Feature
-# LPIPS的特征极大（100个/GB），是直接提取的CNN参数，不具备保存条件
+CacheName: TypeAlias = Literal["ccip", "dreamsim"]
+FeatureType: TypeAlias = NDArray[np.float32]
 
 
 class CacheManager:
@@ -37,7 +35,8 @@ class CacheManager:
             features_np = data["features"]
             # bytes 作为 key，NDArray 作为 value
             self.caches[feature_name] = {
-                h.tobytes() if isinstance(h, np.void) else h: f for h, f in zip(hashes_np, features_np)
+                h.tobytes() if isinstance(h, np.void) else h: np.asarray(f, dtype=np.float32)
+                for h, f in zip(hashes_np, features_np)
             }
         else:
             self.caches[feature_name] = {}
@@ -48,20 +47,20 @@ class CacheManager:
             return
         cache_dict = self.caches[feature_name]
         hashes_np = np.array(list(cache_dict.keys()), dtype=np.object_)
-        features_np = np.array(list(cache_dict.values()))
+        features_np = np.array(list(cache_dict.values()), dtype=np.float32)
         np.savez_compressed(self._get_cache_path(feature_name), hashes=hashes_np, features=features_np)
 
-    def get(self, feature_name: CacheName, hash_key: bytes) -> Optional[Any]:
+    def get(self, feature_name: CacheName, hash_key: bytes) -> FeatureType | None:
         """按 hash 查询特征，如果命中返回特征，否则返回 None"""
         if feature_name not in self.caches:
             self.load_cache(feature_name)
         return self.caches[feature_name].get(hash_key, None)
 
-    def set(self, feature_name: CacheName, hash_key: bytes, value: Any) -> None:
+    def set(self, feature_name: CacheName, hash_key: bytes, value: FeatureType) -> None:
         """将特征存入缓存"""
         if feature_name not in self.caches:
             self.load_cache(feature_name)
-        self.caches[feature_name][hash_key] = value
+        self.caches[feature_name][hash_key] = np.asarray(value, dtype=np.float32)
 
     def has(self, feature_name: CacheName, hash_key: bytes) -> bool:
         """判断特征是否已缓存"""

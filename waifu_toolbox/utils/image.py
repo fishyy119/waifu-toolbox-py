@@ -10,12 +10,14 @@ warnings.filterwarnings("ignore", "Corrupt EXIF data")
 IMG_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp")
 
 
-def load_image(path: Path, max_size: int | Tuple[int, int] = 256) -> ImageType:
+def load_image(path: Path, max_size: int | Tuple[int, int] | None = 256, mode: str = "RGBA") -> ImageType:
     """读取单张图片"""
-    img = Image.open(path).convert("RGBA")
-    if isinstance(max_size, int):
-        max_size = (max_size, max_size)
-    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+    with Image.open(path) as src:
+        img = src.convert(mode)
+    if max_size is not None:
+        if isinstance(max_size, int):
+            max_size = (max_size, max_size)
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
     return img
 
 

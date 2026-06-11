@@ -8,7 +8,7 @@ from waifu_toolbox.core import sort as sort_module
 
 
 def main(images_root: Path):
-    sort_module.sort_images_by_perceptual_similarity(images_root, 2048, False)
+    sort_module.sort_images_by_perceptual_similarity(images_root, False)
 
 
 if __name__ == "__main__":
@@ -24,6 +24,6 @@ if __name__ == "__main__":
     profiler.add_module(sort_module)
     profiler(main)(images_root)
 
-    profile_filename = f"profile_sort_{datetime.datetime.now().strftime("%H%M%S")}.txt"
+    profile_filename = f"profile_sort_{datetime.datetime.now().strftime('%H%M%S')}.txt"
     with open(profile_filename, "w", encoding="utf-8") as f:
         profiler.print_stats(sort=True, stream=f)

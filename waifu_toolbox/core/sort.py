@@ -1,65 +1,18 @@
 # pyright: standard
 
-import shutil
 import warnings
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import List, cast
 
 import numpy as np
 import umap
-from imgutils.metrics import lpips_difference, lpips_extract_feature
 from numpy.typing import NDArray
-from scipy.sparse.csgraph import minimum_spanning_tree
 from tqdm import tqdm
 
-from ..db.cache import CACHE_ROOT
-from ..utils.image import IMG_EXTS, load_image
-
-CACHE_DIR = CACHE_ROOT / "lpips"
-
-
-def mst_tsp_order(D: NDArray[np.float32]) -> List[int]:
-    """
-    使用 MST 近似 TSP 得到图片排序
-    （这种方法没有考虑优先簇内）
-
-    Args:
-        D: N x N 感知距离矩阵
-
-    Returns:
-        order: 图片索引的一维序列，使相似图片相邻
-    """
-    assert D.ndim == 2 and D.shape[0] == D.shape[1], "距离矩阵必须是方阵"
-    N = D.shape[0]
-
-    # 1. 构建最小生成树
-    mst_sparse = minimum_spanning_tree(D)
-    mst = mst_sparse.toarray()
-
-    # 2. 将 MST 转为邻接列表
-    eps = 1e-9
-    adj = {i: [] for i in range(N)}
-    for i in range(N):
-        for j in range(N):
-            if mst[i, j] > eps or mst[j, i] > eps:
-                adj[i].append(j)
-                adj[j].append(i)
-
-    # 3. DFS 遍历 MST 得到路径
-    visited = [False] * N
-    order = []
-
-    def dfs(u: int):
-        visited[u] = True
-        order.append(u)
-        for v in adj[u]:
-            if not visited[v]:
-                dfs(v)
-
-    degree = [len(adj[i]) for i in range(N)]
-    best_start = int(np.argmax(degree))
-    dfs(best_start)  # 从最佳起始点开始遍历
-    return order
+from ..utils.common import compute_file_hash
+from ..utils.dreamsim import  compute_dreamsim_distance_matrix
+from ..utils.feature import get_image_features_use_cache
+from ..utils.image import IMG_EXTS
 
 
 def umap_order(
@@ -86,134 +39,6 @@ def umap_order(
     embedding = cast(np.ndarray, reducer.fit_transform(D)).reshape(-1)
     order = np.argsort(embedding)
     return order.tolist()
-
-
-def save_lpips_chunk(chunk_idx: int, features: List) -> None:
-    path = CACHE_DIR / f"chunk_{chunk_idx:05d}.npz"
-    arr = np.empty(len(features), dtype=object)
-    arr[:] = features  # 整体赋值，不拆 tuple
-
-    np.savez_compressed(path, features=arr)
-
-
-def load_lpips_chunk(chunk_idx: int) -> List[Tuple[np.ndarray, ...]]:
-    path = CACHE_DIR / f"chunk_{chunk_idx:05d}.npz"
-    data = np.load(path, allow_pickle=True)
-    return list(data["features"])
-
-
-def compute_lpips_distance_matrix(images: List) -> NDArray[np.float32]:
-    """
-    计算图片的 LPIPS 感知距离矩阵
-
-    Args:
-        images: 图片数组
-
-    Returns:
-        D: N x N 感知距离矩阵
-    """
-    N = len(images)
-    D = np.zeros((N, N), dtype=np.float32)
-
-    total = N * (N + 1) // 2
-    with tqdm(total=total, desc="计算 LPIPS 距离", leave=False) as pbar:
-        for i in range(N):
-            for j in range(i, N):
-                diff = lpips_difference(images[i], images[j])
-                D[i, j] = D[j, i] = diff
-
-            pbar.update(N - i)
-
-    return D
-
-
-def compute_lpips_distance_matrix_cache() -> NDArray[np.float32]:
-    """
-    计算图片的 LPIPS 感知距离矩阵（使用缓存版本）
-
-    Args:
-        images: 图片数组
-
-    Returns:
-        D: N x N 感知距离矩阵
-    """
-    # ============================
-    # 1. 枚举 chunk
-    # ============================
-    chunk_paths = sorted(CACHE_DIR.glob("chunk_*.npz"))
-    if not chunk_paths:
-        raise RuntimeError("未找到 LPIPS 特征缓存 chunk")
-
-    num_chunks = len(chunk_paths)
-
-    # ============================
-    # 2. 统计每个 chunk 的大小 & 全局偏移
-    # ============================
-    chunk_sizes: List[int] = []
-    for path in chunk_paths:
-        data = np.load(path, allow_pickle=True)
-        chunk_sizes.append(len(data["features"]))
-
-    chunk_offsets: List[int] = []
-    offset = 0
-    for size in chunk_sizes:
-        chunk_offsets.append(offset)
-        offset += size
-
-    N = offset  # 图片总数
-    if N == 0:
-        raise RuntimeError("LPIPS 特征缓存为空")
-
-    # ============================
-    # 3. 准备距离矩阵 & tqdm
-    # ============================
-    total_pairs = N * (N + 1) // 2
-    D = np.zeros((N, N), dtype=np.float32)
-
-    # ============================
-    # 4. chunk × chunk 计算
-    # ============================
-    with tqdm(total=total_pairs, desc="计算 LPIPS 距离", leave=False) as pbar:
-        for ci in range(num_chunks):
-            feats_i = load_lpips_chunk(ci)
-            offset_i = chunk_offsets[ci]
-            size_i = len(feats_i)
-
-            for cj in range(ci, num_chunks):
-                feats_j = load_lpips_chunk(cj)
-                offset_j = chunk_offsets[cj]
-                size_j = len(feats_j)
-
-                if ci == cj:
-                    # TODO: 这里是不是内存占用无端翻倍了？
-                    # chunk 内：只算上三角
-                    for i in range(size_i):
-                        gi = offset_i + i
-                        fi = feats_i[i]
-                        for j in range(i, size_i):
-                            gj = offset_j + j
-                            diff = lpips_difference(fi, feats_j[j])
-                            D[gi, gj] = D[gj, gi] = diff
-                        pbar.update(size_i - i)
-                else:
-                    # chunk 间：全矩阵
-                    for i in range(size_i):
-                        gi = offset_i + i
-                        fi = feats_i[i]
-                        for j in range(size_j):
-                            gj = offset_j + j
-                            diff = lpips_difference(fi, feats_j[j])
-                            D[gi, gj] = D[gj, gi] = diff
-                        pbar.update(size_j)
-
-                # 立即释放
-                del feats_j
-
-            del feats_i
-
-    return D
-
-
 def get_sort_units(root: Path) -> List[Path]:
     """
     递归获取所有排序单元目录。
@@ -253,18 +78,13 @@ def has_uniform_prefix(files: List[Path]) -> bool:
     return all(f.stem.startswith(parent_name) for f in files)
 
 
-def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, avoid_sorted: bool) -> None:
+def sort_images_by_perceptual_similarity(images_root: Path, avoid_sorted: bool) -> None:
     """
-    根据感知相似度对图片进行排序，使得相似图片相邻
+    根据 DreamSim 感知相似度对图片进行排序，使得相似图片相邻
 
     Args:
         images_root: 图片文件夹路径
-        memory_limit: 内存限制（MB）
         avoid_sorted: 避免对已排序目录进行排序
-
-    Returns:
-        order: 图片索引的一维序列，使相似图片相邻
-
     Notes:
         - 递归遍历所有子目录
         - 排序单元是每个目录，不递归
@@ -276,6 +96,7 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
         image_paths: List[Path] = []
         for ext in exts:
             image_paths.extend(unit.glob(ext))
+        image_paths.sort()  # 尽量让输入序列稳定
 
         if len(image_paths) <= 2:
             continue
@@ -290,45 +111,19 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
 
         pbar_root.set_postfix_str(unit.name)
 
-        chunk_size = int((memory_limit / 1024) * 50)
-        use_cache = chunk_size * 2 <= len(image_paths)
-        chunk_idx = 0
-        buf_features = []
+        image_hashes = [compute_file_hash(path) for path in image_paths]
+        features, _ = get_image_features_use_cache(
+            'dreamsim',
+            paths_and_hashes=(image_paths, image_hashes),
+        )
+        embeddings = np.stack(features, axis=0)
+        distances = compute_dreamsim_distance_matrix(embeddings)
 
-        if use_cache:
-            if CACHE_DIR.exists():
-                shutil.rmtree(CACHE_DIR)
-            CACHE_DIR.mkdir(exist_ok=True, parents=True)
-
-            with tqdm(total=len(image_paths), desc="提取 LPIPS 特征", unit="img", leave=False) as pbar:
-                for chunk_start in range(0, len(image_paths), chunk_size):
-                    for p in image_paths[chunk_start : chunk_start + chunk_size]:
-                        image = load_image(p)
-                        feature = lpips_extract_feature(image)
-                        buf_features.append(feature)
-                        pbar.update(1)
-
-                    save_lpips_chunk(chunk_idx, buf_features)
-                    buf_features.clear()
-                    chunk_idx += 1
-
-            D = compute_lpips_distance_matrix_cache()
-        else:
-            with tqdm(total=len(image_paths), desc="提取 LPIPS 特征", unit="img", leave=False) as pbar:
-                for p in image_paths:
-                    image = load_image(p)
-                    feature = lpips_extract_feature(image)
-                    buf_features.append(feature)
-                    pbar.update(1)
-
-            D = compute_lpips_distance_matrix(buf_features)
-
-        # order = mst_tsp_order(D)
         if len(image_paths) < 200:
             n_neighbors = min(10, max(2, len(image_paths) // 2))
         else:
             n_neighbors = 20
-        order = umap_order(D, n_neighbors=n_neighbors)
+        order = umap_order(distances, n_neighbors=n_neighbors)
 
         # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
         temp_paths: List[Path] = []
@@ -338,9 +133,7 @@ def sort_images_by_perceptual_similarity(images_root: Path, memory_limit: int, a
             old_path.rename(temp_path)
             temp_paths.append(temp_path)
 
-        for rank, idx in enumerate(order):
+        for rank, _ in enumerate(order):
             old_path = temp_paths[rank]
             new_path = old_path.with_name(f"{unit.name}_{rank:04d}{old_path.suffix}")
             old_path.rename(new_path)
-
-    return

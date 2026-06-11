@@ -1,6 +1,6 @@
 # waifu-toolbox-py
 
-Python 3.12 (dghs-imgutils 0.19.0)
+Python 3.12 (`dghs-imgutils 0.19.0`, `dreamsim 0.2.1`)
 
 ## Install
 
@@ -19,7 +19,7 @@ pip install -e .
 > 仓库索引和特征缓存统一存放到用户目录下的 `~/.waifu/database/`
 >
 > - CCIP 仓库索引：`~/.waifu/database/ccip/`
-> - 特征缓存：`~/.waifu/database/cache/`
+> - DreamSim 权重：`~/.waifu/database/cache/dreamsim_models/`
 
 ## Repo
 
@@ -70,21 +70,12 @@ waifu classify "待整理目录" --inplace  # 原地整理
 
 ## Sort
 
-sort 命令用于基于感知差异的图片排序，其会对每个包含图片的子目录单独进行排序。基于`dghs-imgutils`提供的 LPIPS 模型
+sort 命令用于基于 DreamSim embedding 的感知差异对图片排序，其会对每个包含图片的子目录单独进行排序。
 
 ```shell
 waifu sort "目标目录"
-waifu sort "目标目录" -m 1024  # 限制内存开销为1024MB
 waifu sort "目标目录" --avoid-sorted  # 跳过已排序的文件夹
 ```
-
-> [!NOTE]
-> 该模型提取出的特征未经过压缩，占据内存空间极大（约100张/GB），因此在图片数量过多超出内存限制的情况下，需要将特征缓存到文件系统，这会很大程度上增加时间开销。
->
-> 不启用缓存的图片最大允许张数 `N` 与内存限制值 `M` 之间的关系为：`N = (M / 1024) * 100`
->
-> > 仅为数学计算，并非强制内存限制，实际内存开销可能会有一定出入
->
 
 ## Convert
 

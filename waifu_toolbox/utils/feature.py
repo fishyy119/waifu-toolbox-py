@@ -1,16 +1,30 @@
 # pyright: standard
 
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import Callable, List, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
-from PIL.Image import Image as ImageType
 from tqdm import tqdm
 
-from ..db.cache import CCIP_Feature, CacheManager, CacheName
+from ..db.cache import CacheManager, CacheName, FeatureType
 from .common import compute_file_hash
+from .dreamsim import extract_dreamsim_embedding_from_path
 from .image import IMG_EXTS, load_image
+
+
+def _extract_ccip_feature(img_path: Path) -> FeatureType:
+    from imgutils.metrics.ccip import ccip_extract_feature
+
+    return np.asarray(ccip_extract_feature(load_image(img_path)), dtype=np.float32)
+
+
+def _get_feature_extractor(feature_name: CacheName) -> Callable[[Path], FeatureType]:
+    if feature_name == "ccip":
+        return _extract_ccip_feature
+    if feature_name == "dreamsim":
+        return extract_dreamsim_embedding_from_path
+    raise ValueError(f"不支持的特征类型: {feature_name}")
 
 
 def get_image_features_use_cache(
@@ -20,7 +34,7 @@ def get_image_features_use_cache(
     recursive: bool = True,
 ) -> Tuple[List[NDArray[np.float32]], List[Path]]:
     """获取指定文件夹下所有图片的特征，考虑缓存"""
-    features: List[CCIP_Feature | None] = []
+    features: List[FeatureType | None] = []
     img_paths: List[Path] = []
     img_hashes: List[bytes] = []
     if img_folder_root is not None:
@@ -36,24 +50,26 @@ def get_image_features_use_cache(
     else:
         raise ValueError("必须指定 img_folder_root 或 image_paths 参数")
 
+    if len(img_paths) != len(img_hashes):
+        raise ValueError("图片路径与哈希数量不一致")
+
     cache = CacheManager()
-    from imgutils.metrics.ccip import ccip_extract_feature
+    extractor = _get_feature_extractor(feature_name)
 
     tqdm_feature = tqdm(total=len(img_paths), desc="提取图片特征", unit="img")
-    extract_quene: List[Tuple[int, ImageType]] = []
+    extract_queue: List[int] = []
     for img_idx, (img_path, img_hash) in enumerate(zip(img_paths, img_hashes)):
-        cached_feature = cast(CCIP_Feature | None, cache.get(feature_name, img_hash))
+        cached_feature = cache.get(feature_name, img_hash)
         if cached_feature is not None:
             features.append(cached_feature)
             tqdm_feature.update(1)
         else:
-            extract_quene.append((img_idx, load_image(img_path)))
+            extract_queue.append(img_idx)
             features.append(None)  # 占位符
             tqdm_feature.update(0.1)
 
-    # 统一提取速度更快
-    for img_idx, img in extract_quene:
-        feature = cast(CCIP_Feature, ccip_extract_feature(img))
+    for img_idx in extract_queue:
+        feature = extractor(img_paths[img_idx])
         features[img_idx] = feature
         cache.set(feature_name, img_hashes[img_idx], feature)
         tqdm_feature.update(0.9)
