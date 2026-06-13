@@ -133,6 +133,24 @@ class RepoAnalyzeCommand(Command):
         )
 
 
+class RepoSearchCommand(Command):
+    name = "search"
+    help = "Search for similar images in a repository using DreamSim"
+
+    @staticmethod
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("-n", "--name", required=True, help="Repository name")
+        parser.add_argument("-i", "--image", type=Path, required=True, help="Query image path")
+        parser.add_argument("-k", "--top-k", type=int, default=5, help="Number of results (default: 10)")
+        parser.add_argument("--skip-update", action="store_true", help="Skip automatic index update before search")
+
+    @staticmethod
+    def execute(args: argparse.Namespace) -> None:
+        from ..db.operations import search_similar
+
+        search_similar(args.name, args.image, args.top_k, skip_update=args.skip_update)
+
+
 # repo 二级子命令集合
 class RepoCommand(Command):
     name = "repo"
@@ -145,6 +163,7 @@ class RepoCommand(Command):
         RepoInfoCommand,
         RepoFlattenCommand,
         RepoAnalyzeCommand,
+        RepoSearchCommand,
     ]
 
     @staticmethod

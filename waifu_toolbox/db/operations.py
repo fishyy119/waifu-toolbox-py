@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+import numpy as np
 from rich import print
 from rich.table import Table
 from tqdm import tqdm
@@ -142,6 +143,46 @@ def clear_cache(ccip: bool = False, dreamsim: bool = False) -> None:
                 ("dreamsim",),
             )
         log_info(f"已清空 DreamSim 特征缓存（{count} 条）。")
+
+
+def search_similar(repo_name: str, query_image: Path, top_k: int = 10, skip_update: bool = False) -> None:
+    from ..utils.dreamsim import extract_dreamsim_embedding_from_path
+
+    db = ImageRepo()
+    if not skip_update:
+        db.update(repo_name, extract_ccip=False, extract_dreamsim=True)  # 里面自动load仓库
+    else:
+        db.load(repo_name)
+    db.load_features(dreamsim=True)
+
+    if db.dreamsim_features is None or len(db.dreamsim_features) == 0:
+        log_error(f"仓库 '{repo_name}' 中没有 DreamSim 特征，请先运行 repo update --dreamsim")
+        return
+
+    query_embedding = extract_dreamsim_embedding_from_path(query_image)
+    similarities = db.dreamsim_features @ query_embedding
+    top_k = min(top_k, len(similarities))
+    top_indices = np.argsort(similarities)[::-1][:top_k]
+
+    assert db.repo_path is not None
+    table = Table(show_header=True, header_style="bold", title=f"Top {top_k} similar images")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Path", style="orchid")
+    table.add_column("Label", style="magenta bold")
+    table.add_column("Similarity", style="green", justify="right")
+
+    for rank, idx in enumerate(top_indices, 1):
+        idx: int
+        rel_path = db.relative_paths[idx]
+        full_path = db.repo_path / rel_path if rel_path else "N/A"
+        table.add_row(
+            str(rank),
+            str(full_path),
+            db.labels[idx],
+            f"{similarities[idx]:.4f}",
+        )
+
+    print(table)
 
 
 def flatten_repo(repo_name: str) -> None:

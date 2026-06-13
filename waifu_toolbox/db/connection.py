@@ -7,7 +7,7 @@ from ..utils.console import log_info
 
 DB_PATH: Path = PATHS.waifu_db
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _connection: sqlite3.Connection | None = None
 
@@ -58,9 +58,17 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     if current < 1:
         _init_v1(conn)
+    if current < 2:
+        _migrate_v1_to_v2(conn)
 
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(images)").fetchall()}
+    if "relative_path" not in cols:
+        conn.execute("ALTER TABLE images ADD COLUMN relative_path TEXT")
 
 
 def _init_v1(conn: sqlite3.Connection) -> None:

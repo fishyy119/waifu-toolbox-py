@@ -23,6 +23,7 @@ class ImageRepo:
         self.dreamsim_features: NDArray[np.float32] | None = None
         self.hashes: List[bytes] = []
         self.labels: List[str] = []
+        self.relative_paths: List[str] = []
 
         self._repo_name: str | None = None
         self._repo_id: int | None = None
@@ -68,6 +69,7 @@ class ImageRepo:
             self.dreamsim_features = None
             self.hashes = []
             self.labels = []
+            self.relative_paths = []
             self.repo_path = None
             self._repo_id = None
             return False
@@ -76,13 +78,14 @@ class ImageRepo:
         self.repo_path = Path(row[1])
 
         rows = conn.execute(
-            """SELECT hash, label FROM images
+            """SELECT hash, label, relative_path FROM images
                WHERE repo_id = ? ORDER BY rowid""",
             (self._repo_id,),
         ).fetchall()
 
         self.hashes = [r[0] for r in rows]
         self.labels = [r[1] for r in rows]
+        self.relative_paths = [r[2] or "" for r in rows]
         self.ccip_features = None
         self.dreamsim_features = None
 
@@ -98,25 +101,27 @@ class ImageRepo:
 
         if ccip:
             rows = conn.execute(
-                """SELECT hash, label, ccip_feature FROM images
+                """SELECT hash, label, relative_path, ccip_feature FROM images
                    WHERE repo_id = ? AND ccip_feature IS NOT NULL
                    ORDER BY rowid""",
                 (self._repo_id,),
             ).fetchall()
             self.hashes = [r[0] for r in rows]
             self.labels = [r[1] for r in rows]
-            self.ccip_features = np.stack([np.frombuffer(r[2], dtype=np.float32) for r in rows]) if rows else None
+            self.relative_paths = [r[2] or "" for r in rows]
+            self.ccip_features = np.stack([np.frombuffer(r[3], dtype=np.float32) for r in rows]) if rows else None
 
         if dreamsim:
             rows = conn.execute(
-                """SELECT hash, label, dreamsim_feature FROM images
+                """SELECT hash, label, relative_path, dreamsim_feature FROM images
                    WHERE repo_id = ? AND dreamsim_feature IS NOT NULL
                    ORDER BY rowid""",
                 (self._repo_id,),
             ).fetchall()
             self.hashes = [r[0] for r in rows]
             self.labels = [r[1] for r in rows]
-            self.dreamsim_features = np.stack([np.frombuffer(r[2], dtype=np.float32) for r in rows]) if rows else None
+            self.relative_paths = [r[2] or "" for r in rows]
+            self.dreamsim_features = np.stack([np.frombuffer(r[3], dtype=np.float32) for r in rows]) if rows else None
 
     def feature_status(self) -> Tuple[int, int, int]:
         """轻量查询特征覆盖状态，返回 (total, ccip_count, dreamsim_count)"""
@@ -147,10 +152,11 @@ class ImageRepo:
             self._repo_id = repo_id
 
             conn.executemany(
-                """INSERT INTO images (repo_id, hash, label, ccip_feature, dreamsim_feature)
-                   VALUES (?, ?, ?, ?, ?)
+                """INSERT INTO images (repo_id, hash, label, relative_path, ccip_feature, dreamsim_feature)
+                   VALUES (?, ?, ?, ?, ?, ?)
                    ON CONFLICT(repo_id, hash) DO UPDATE SET
                        label = excluded.label,
+                       relative_path = excluded.relative_path,
                        ccip_feature = COALESCE(excluded.ccip_feature, images.ccip_feature),
                        dreamsim_feature = COALESCE(excluded.dreamsim_feature, images.dreamsim_feature)""",
                 [
@@ -158,6 +164,7 @@ class ImageRepo:
                         repo_id,
                         h,
                         label,
+                        self.relative_paths[i] if self.relative_paths else None,
                         self.ccip_features[i].tobytes() if self.ccip_features is not None else None,
                         self.dreamsim_features[i].tobytes() if self.dreamsim_features is not None else None,
                     )
@@ -198,6 +205,7 @@ class ImageRepo:
             self.dreamsim_features = self.dreamsim_features[selected_indices, :]
         self.labels = [self.labels[i] for i in selected_indices]
         self.hashes = [self.hashes[i] for i in selected_indices]
+        self.relative_paths = [self.relative_paths[i] for i in selected_indices]
 
     @staticmethod
     def scan_imgs_with_label(repo_path: Path) -> Tuple[List[Path], List[str]]:
@@ -284,36 +292,37 @@ class ImageRepo:
         hash_to_index: Dict[bytes, int] = {h: i for i, h in enumerate(self.hashes)}
         hash_to_path: Dict[bytes, Path] = {}
         updated_labels = 0
-        new_entries: List[Tuple[bytes, str]] = []
-        label_updates: List[Tuple[str, bytes]] = []
+        new_entries: List[Tuple[bytes, str, str]] = []
+        existing_updates: List[Tuple[str, str, bytes]] = []
 
         for p, label in tqdm(zip(image_paths, labels), total=len(image_paths), desc="扫描并同步索引"):
             h = compute_file_hash(p)
             hash_to_path[h] = p
+            rel = str(p.relative_to(self.repo_path))
 
             if h in hash_to_index:  # 已存在索引中
                 idx = hash_to_index[h]
                 if self.labels[idx] != label:  # 分类发生变化，仅更新 label
-                    label_updates.append((label, h))
                     updated_labels += 1
+                existing_updates.append((label, rel, h))
             else:  # 新图片
-                new_entries.append((h, label))
+                new_entries.append((h, label, rel))
 
         conn = get_connection()
 
         # 同步 hash 和 label
         with conn:
-            if label_updates:
+            if existing_updates:
                 conn.executemany(
-                    """UPDATE images SET label = ?
+                    """UPDATE images SET label = ?, relative_path = ?
                        WHERE repo_id = ? AND hash = ?""",
-                    [(label, self._repo_id, h) for label, h in label_updates],
+                    [(label, rel, self._repo_id, h) for label, rel, h in existing_updates],
                 )
             if new_entries:
                 conn.executemany(
-                    """INSERT INTO images (repo_id, hash, label)
-                       VALUES (?, ?, ?)""",
-                    [(self._repo_id, h, label) for h, label in new_entries],
+                    """INSERT INTO images (repo_id, hash, label, relative_path)
+                       VALUES (?, ?, ?, ?)""",
+                    [(self._repo_id, h, label, rel) for h, label, rel in new_entries],
                 )
 
         if new_entries or updated_labels:
@@ -413,6 +422,7 @@ class ImageRepo:
         self.repo_path = path
         self.hashes = hashes
         self.labels = valid_labels
+        self.relative_paths = [str(p.relative_to(path)) for p in valid_paths]
 
         return True
 
