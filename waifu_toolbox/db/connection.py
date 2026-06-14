@@ -3,27 +3,14 @@ from datetime import datetime
 from pathlib import Path
 
 from ..paths import PATHS
-from ..utils.console import log_info
 
 DB_PATH: Path = PATHS.waifu_db
 
 SCHEMA_VERSION = 2
 
-_connection: sqlite3.Connection | None = None
 
-
-def get_connection() -> sqlite3.Connection:
-    global _connection
-    if _connection is None:
-        _connection = _open_and_init(DB_PATH)
-    return _connection
-
-
-def close_connection() -> None:
-    global _connection
-    if _connection is not None:
-        _connection.close()
-        _connection = None
+def open_connection() -> sqlite3.Connection:
+    return _open_and_init(DB_PATH)
 
 
 def _open_and_init(path: Path) -> sqlite3.Connection:
@@ -47,7 +34,6 @@ def _backup_database(conn: sqlite3.Connection, current_version: int) -> None:
     backup_conn = sqlite3.connect(str(backup_path))
     conn.backup(backup_conn)
     backup_conn.close()
-    log_info(f"数据库已备份: [orchid]{backup_path}[/orchid]")
 
 
 def _migrate_schema(conn: sqlite3.Connection) -> None:

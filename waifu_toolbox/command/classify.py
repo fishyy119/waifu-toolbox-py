@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from ..utils.console import log_error, log_info
 from .base import Command
 
 
@@ -26,8 +27,12 @@ class ClassifyCommand(Command):
         if args.repo is None:
             from ..core.classification import just_cluster_by_ccip
 
-            just_cluster_by_ccip(args.wait_classify, args.inplace)
+            result = just_cluster_by_ccip(args.wait_classify, args.inplace)
         else:
             from ..core.classification import classify_by_ccip
 
-            classify_by_ccip(args.repo, args.wait_classify, args.num_references)
+            result = classify_by_ccip(args.repo, args.wait_classify, args.num_references)
+        if result.ok:
+            log_info(result.message)
+        else:
+            log_error(result.message)

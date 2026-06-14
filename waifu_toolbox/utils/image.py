@@ -1,13 +1,18 @@
 import random
 import warnings
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, NamedTuple, Tuple
 
 from PIL import Image
 from PIL.Image import Image as ImageType
 
 warnings.filterwarnings("ignore", "Corrupt EXIF data")
 IMG_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp")
+
+
+class LoadedImages(NamedTuple):
+    images: List[ImageType]
+    paths: List[Path]
 
 
 def load_image(path: Path, max_size: int | Tuple[int, int] | None = 256, mode: str = "RGBA") -> ImageType:
@@ -26,7 +31,7 @@ def load_images_from_folder(
     max_samples: int | None = None,
     max_sample_rate: float | None = None,
     tqdm_title: str | None = None,
-) -> Tuple[List[ImageType], List[Path]]:
+) -> LoadedImages:
     """
     分层采样读取图片（根目录及一级子目录），采样总数由 max_samples 或 max_sample_rate 控制
 
@@ -89,4 +94,4 @@ def load_images_from_folder(
     for file_path in iterator:
         images.append(load_image(file_path, 256))
 
-    return images, sampled_files
+    return LoadedImages(images, sampled_files)

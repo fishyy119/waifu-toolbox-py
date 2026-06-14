@@ -8,12 +8,13 @@ Python 3.12 (`dghs-imgutils 0.19.0`, `dreamsim 0.2.1`)
 
 ```shell
 pip install -e .
+pip install -e .[gui]  # 若需要使用GUI，需额外安装可选依赖
 ```
 
 安装后会提供两个命令入口：
 
-- `waifu`：推荐的简写命令
-- `waifu-toolbox`：完整命令别名
+- `waifu`：CLI操控
+- `waifu-gui`：WebUI操控
 
 > [!NOTE]
 > 仓库索引和特征缓存统一存放到用户目录下的 `~/.waifu/database/waifu.db`（SQLite）
@@ -48,6 +49,10 @@ waifu repo analyze -n "仓库名"          # 分析文件类型占比
 waifu repo analyze -n "仓库名" -c       # 分析各分类的文件占比
 waifu repo analyze -n "仓库名" -s count # 结果排序
 waifu repo analyze -n "仓库名" -d "xxx/xxx"  # 分析指定子目录
+
+# 相似图片搜索（基于 DreamSim 特征余弦相似度）
+waifu repo search -n "仓库名" -i "查询图片路径" -k 10    # 返回 Top 10
+waifu repo search -n "仓库名" -i "查询图片路径" --update # 搜索前自动更新索引
 ```
 
 > flatten 命令考虑场景为将图片导出到手机上时，由于大多数手机相册应用都不支持嵌套的相册查看，所以需要进行一步扁平化操作。
@@ -103,3 +108,14 @@ waifu convert "目标目录" # 将目标目录下的 bmp 图片转换为 webp �
 waifu convert "目标目录" -f png # 转换 png 图片
 waifu convert "目标目录" -r # 替换原文件
 ```
+
+## GUI
+
+基于 NiceGUI 的 Web 界面，提供仓库管理、相似搜索、分类、排序等功能的可视化操作。
+
+```shell
+pip install -e .[gui]
+waifu-gui
+```
+
+默认监听端口为 `3039`，启动后可在 [http://127.0.0.1:3039](http://127.0.0.1:3039) 访问。

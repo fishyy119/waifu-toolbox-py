@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from ..utils.console import log_error, log_info
 from .base import Command
 
 
@@ -28,4 +29,11 @@ class ConvertCommand(Command):
     def execute(args: argparse.Namespace):
         from ..core.convert import convert_images
 
-        convert_images(args.input, args.replace, source_format=args.format)
+        result = convert_images(args.input, args.replace, source_format=args.format)
+        if result.ok:
+            log_info(result.message)
+            if result.data:
+                for error in result.data.errors:
+                    log_error(error)
+        else:
+            log_error(result.message)

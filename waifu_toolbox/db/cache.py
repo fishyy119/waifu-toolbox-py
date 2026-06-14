@@ -1,9 +1,8 @@
+import sqlite3
 from typing import Dict, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
-
-from .connection import get_connection
 
 CacheName: TypeAlias = Literal["ccip", "dreamsim"]
 FeatureType: TypeAlias = NDArray[np.float32]
@@ -16,15 +15,15 @@ class CacheManager:
     - 写入先缓冲到内存，调用 save_cache 时批量写入
     """
 
-    def __init__(self) -> None:
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
         self._dirty: Dict[CacheName, Dict[bytes, FeatureType]] = {}
 
     def get(self, feature_name: CacheName, hash_key: bytes) -> FeatureType | None:
         """按 hash 查询特征，如果命中返回特征，否则返回 None"""
         if feature_name in self._dirty and hash_key in self._dirty[feature_name]:
             return self._dirty[feature_name][hash_key]
-        conn = get_connection()
-        row = conn.execute(
+        row = self._conn.execute(
             """SELECT feature FROM feature_cache
                WHERE hash = ? AND feature_type = ?""",
             (hash_key, feature_name),
@@ -42,9 +41,8 @@ class CacheManager:
         if feature_name not in self._dirty or not self._dirty[feature_name]:
             return
         dirty = self._dirty[feature_name]
-        conn = get_connection()
-        with conn:
-            conn.executemany(
+        with self._conn:
+            self._conn.executemany(
                 """INSERT OR REPLACE INTO feature_cache (hash, feature_type, feature)
                    VALUES (?, ?, ?)""",
                 [(h, feature_name, v.tobytes()) for h, v in dirty.items()],

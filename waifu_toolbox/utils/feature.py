@@ -1,16 +1,26 @@
 # pyright: standard
 
 from pathlib import Path
-from typing import Callable, List, Tuple, cast
+from typing import Callable, List, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
-from tqdm import tqdm
 
 from ..db.cache import CacheManager, CacheName, FeatureType
 from .common import compute_file_hash
 from .dreamsim import extract_dreamsim_embedding_from_path
 from .image import IMG_EXTS, load_image
+from .progress import ProgressFactory, tqdm_factory
+
+
+class PathsWithHashes(NamedTuple):
+    paths: List[Path]
+    hashes: List[bytes]
+
+
+class FeatureResult(NamedTuple):
+    features: List[NDArray[np.float32]]
+    paths: List[Path]
 
 
 def _extract_ccip_feature(img_path: Path) -> FeatureType:
@@ -30,9 +40,12 @@ def _get_feature_extractor(feature_name: CacheName) -> Callable[[Path], FeatureT
 def get_image_features_use_cache(
     feature_name: CacheName,
     img_folder_root: Path | None = None,
-    paths_and_hashes: Tuple[List[Path], List[bytes]] | None = None,
+    paths_and_hashes: PathsWithHashes | None = None,
     recursive: bool = True,
-) -> Tuple[List[NDArray[np.float32]], List[Path]]:
+    *,
+    cache: CacheManager,
+    make_progress: ProgressFactory | None = None,
+) -> FeatureResult:
     """获取指定文件夹下所有图片的特征，考虑缓存"""
     features: List[FeatureType | None] = []
     img_paths: List[Path] = []
@@ -53,16 +66,16 @@ def get_image_features_use_cache(
     if len(img_paths) != len(img_hashes):
         raise ValueError("图片路径与哈希数量不一致")
 
-    cache = CacheManager()
     extractor = _get_feature_extractor(feature_name)
 
-    tqdm_feature = tqdm(total=len(img_paths), desc="提取图片特征", unit="img")
+    factory = make_progress or tqdm_factory
+    bar = factory(len(img_paths), "提取图片特征")
     extract_queue: List[int] = []
     for img_idx, (img_path, img_hash) in enumerate(zip(img_paths, img_hashes)):
         cached_feature = cache.get(feature_name, img_hash)
         if cached_feature is not None:
             features.append(cached_feature)
-            tqdm_feature.update(1)
+            bar.update(1)
         else:
             extract_queue.append(img_idx)
             features.append(None)  # 占位符
@@ -71,8 +84,9 @@ def get_image_features_use_cache(
         feature = extractor(img_paths[img_idx])
         features[img_idx] = feature
         cache.set(feature_name, img_hashes[img_idx], feature)
-        tqdm_feature.update(1)
+        bar.update(1)
 
-    tqdm_feature.close()
+    bar.close()
     cache.save_cache(feature_name)
-    return cast(List[NDArray[np.float32]], features), img_paths
+    features_casted = cast(List[FeatureType], features)
+    return FeatureResult(features_casted, img_paths)

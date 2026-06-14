@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from ..utils.console import log_error, log_info
 from .base import Command
 
 
@@ -20,4 +21,8 @@ class SortCommand(Command):
     def execute(args: argparse.Namespace) -> None:
         from ..core.sort import sort_images_by_perceptual_similarity
 
-        sort_images_by_perceptual_similarity(args.dir, args.avoid_sorted)
+        result = sort_images_by_perceptual_similarity(args.dir, args.avoid_sorted)
+        if result.ok:
+            log_info(result.message)
+        else:
+            log_error(result.message)

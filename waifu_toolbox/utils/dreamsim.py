@@ -1,6 +1,6 @@
 from functools import cache
 from pathlib import Path
-from typing import Callable, Tuple, cast
+from typing import Callable, NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,15 +17,21 @@ DREAMSIM_MODEL_TYPE = "synclr_vitb16"
 DREAMSIM_MODEL_CACHE_DIR = PATHS.dreamsim_model_root / DREAMSIM_MODEL_TYPE
 
 
+class DreamSimComponents(NamedTuple):
+    model: PerceptualModel
+    preprocess: Callable[[ImageType], Tensor]
+
+
 @cache
-def _load_dreamsim_components() ->Tuple[PerceptualModel, Callable[[ImageType], Tensor]]:
+def _load_dreamsim_components() -> DreamSimComponents:
     DREAMSIM_MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return dreamsim(
+    model, preprocess = dreamsim(
         pretrained=True,
         device=DREAMSIM_DEVICE,
         cache_dir=str(DREAMSIM_MODEL_CACHE_DIR),
         dreamsim_type=DREAMSIM_MODEL_TYPE,
     )
+    return DreamSimComponents(model, preprocess)
 
 
 

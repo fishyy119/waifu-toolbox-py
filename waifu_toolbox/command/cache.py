@@ -1,6 +1,7 @@
 import argparse
 from typing import List
 
+from ..utils.console import log_error, log_info
 from .base import Command, CommandType
 
 
@@ -17,7 +18,11 @@ class CacheClearCommand(Command):
     def execute(args: argparse.Namespace) -> None:
         from ..db.operations import clear_cache
 
-        clear_cache(ccip=args.ccip, dreamsim=args.dreamsim)
+        result = clear_cache(ccip=args.ccip, dreamsim=args.dreamsim)
+        if result.ok:
+            log_info(result.message)
+        else:
+            log_error(result.message)
 
 
 # cache 二级子命令集合
