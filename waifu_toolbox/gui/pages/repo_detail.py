@@ -1,6 +1,6 @@
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict
 
 from nicegui import ui
 
@@ -15,17 +15,142 @@ from ...db.operations import (
     update_repo,
 )
 from ..components.badges import badge, feature_badge
+from ..components.directory_tree import (
+    DirectoryTreeNode,
+    DirectoryTreeState,
+    directory_tree,
+)
 from ..components.file_picker import folder_picker
 from ..components.image_viewer import ImageItem, image_viewer, serve_repo_images
-from ..components.layout import THEME, page_layout
+from ..components.layout import (
+    THEME,
+    DrawerPanel,
+    PageLayoutOptions,
+    page_layout,
+)
 from ..services.task_manager import task_manager
 
 
-def render(repo_name: str):
-    page_layout(f"/repo/{repo_name}")
+@dataclass
+class _DirectoryBranch:
+    key: str
+    label: str
+    children: dict[str, "_DirectoryBranch"] = field(default_factory=lambda: _new_branch_children())
+
+
+@dataclass(frozen=True)
+class _DirectoryBrowser:
+    tree_nodes: list[DirectoryTreeNode]
+    direct_images_by_dir: dict[str, list[ImageItem]]
+    preorder_keys: tuple[str, ...]
+
+
+def _new_branch_children() -> dict[str, _DirectoryBranch]:
+    return {}
+
+
+def _split_relative_path(relative_path: str) -> tuple[str, ...]:
+    normalized = relative_path.replace("\\", "/").strip("/")
+    if not normalized:
+        return ()
+    return tuple(part for part in normalized.split("/") if part)
+
+
+def _build_tree_nodes(
+    branches: dict[str, _DirectoryBranch],
+    direct_images_by_dir: dict[str, list[ImageItem]],
+    preorder_keys: list[str],
+) -> list[DirectoryTreeNode]:
+    tree_nodes: list[DirectoryTreeNode] = []
+    for branch_name in sorted(branches):
+        branch = branches[branch_name]
+        preorder_keys.append(branch.key)
+        direct_images_by_dir.setdefault(branch.key, [])
+        children = _build_tree_nodes(branch.children, direct_images_by_dir, preorder_keys)
+        tree_nodes.append({"id": branch.key, "label": branch.label, "children": children})
+    return tree_nodes
+
+
+def _build_directory_browser(images: list[ImageItem]) -> _DirectoryBrowser:
+    roots: dict[str, _DirectoryBranch] = {}
+    direct_images_by_dir: dict[str, list[ImageItem]] = {}
+
+    for image in images:
+        parts = _split_relative_path(image["relative_path"])
+        if len(parts) < 2:
+            continue
+
+        cursor = roots
+        branch: _DirectoryBranch | None = None
+        key_parts: list[str] = []
+        for part in parts[:-1]:
+            key_parts.append(part)
+            current_key = "/".join(key_parts)
+            next_branch = cursor.get(part)
+            if next_branch is None:
+                next_branch = _DirectoryBranch(key=current_key, label=part)
+                cursor[part] = next_branch
+            branch = next_branch
+            cursor = next_branch.children
+
+        if branch is None:
+            continue
+
+        direct_images_by_dir.setdefault(branch.key, []).append(image)
+
+    preorder_keys: list[str] = []
+    tree_nodes = _build_tree_nodes(roots, direct_images_by_dir, preorder_keys)
+    return _DirectoryBrowser(
+        tree_nodes=tree_nodes,
+        direct_images_by_dir=direct_images_by_dir,
+        preorder_keys=tuple(preorder_keys),
+    )
+
+
+def _default_directory_key(browser: _DirectoryBrowser) -> str:
+    for key in browser.preorder_keys:
+        if browser.direct_images_by_dir.get(key):
+            return key
+    return browser.preorder_keys[0] if browser.preorder_keys else ""
+
+
+def render(repo_name: str) -> None:
+    info = get_repo_info(repo_name)
+    result = get_repo_images(repo_name) if info is not None else None
+    all_images: list[ImageItem] = []
+    if result is not None:
+        all_images = [{"relative_path": img.relative_path, "label": img.label} for img in result.images]
+
+    directory_browser = _build_directory_browser(all_images)
+    tree_state = DirectoryTreeState(selected_key=_default_directory_key(directory_browser))
+
+    def render_directory_panel() -> None:
+        if not directory_browser.tree_nodes:
+            ui.label("当前索引中暂无可浏览目录").classes("text-sm text-muted px-2")
+            return
+
+        directory_tree(
+            nodes=directory_browser.tree_nodes,
+            state=tree_state,
+            on_selection_change=lambda _: render_grid.refresh(),
+        )
+
+    page_layout(
+        f"/repo/{repo_name}",
+        options=PageLayoutOptions(
+            drawer_panels=[
+                DrawerPanel(
+                    key="tree",
+                    label="目录树",
+                    render=render_directory_panel,
+                    icon="account_tree",
+                )
+            ],
+            default_drawer_panel="tree",
+        ),
+    )
 
     with ui.column().classes("w-full p-6 gap-4 max-w-5xl"):
-        info = get_repo_info(repo_name)
         if info is None:
             ui.label(f"仓库 '{repo_name}' 不存在").classes("text-sm text-destructive-fg")
             return
@@ -55,16 +180,10 @@ def render(repo_name: str):
                 _rename_button(repo_name)
                 _change_path_button(repo_name)
 
-        result = get_repo_images(repo_name)
         if result is None:
             return
         url_prefix = serve_repo_images(repo_name, result.repo_path)
-        images = result.images
-
-        all_images: list[ImageItem] = [{"relative_path": img.relative_path, "label": img.label} for img in images]
-        labels = sorted(set(img.label for img in images))
-
-        label_counts = Counter(img.label for img in images)
+        label_counts = Counter(img["label"] for img in all_images)
         sorted_labels = sorted(label_counts.items(), key=lambda x: x[1], reverse=True)
         if sorted_labels:
             with ui.card().classes("w-full"):
@@ -86,18 +205,7 @@ def render(repo_name: str):
                 if len(sorted_labels) > 30:
                     ui.label(f"（仅显示前 30 个标签，共 {len(sorted_labels)} 个）").classes("text-xs text-muted")
 
-        class _ViewState(TypedDict):
-            label: str
-
-        view_state: _ViewState = {"label": ""}
-
         with ui.row().classes("items-center gap-4 flex-wrap"):
-            ui.select(
-                label="标签筛选",
-                options=["(全部)"] + labels,
-                value="(全部)",
-                on_change=lambda e: _set_label(e.value),
-            ).classes("min-w-[160px]")
             columns_input = (
                 ui.number(
                     label="列数",
@@ -105,7 +213,7 @@ def render(repo_name: str):
                     min=0,
                     max=20,
                     step=1,
-                    on_change=lambda _: render_grid(),
+                    on_change=lambda _: render_grid.refresh(),
                 )
                 .classes("w-24")
                 .tooltip("0 = 自动")
@@ -116,37 +224,31 @@ def render(repo_name: str):
                 min=10,
                 max=500,
                 step=10,
-                on_change=lambda _: render_grid(),
+                on_change=lambda _: render_grid.refresh(),
             ).classes("w-24")
             view_mode_toggle = ui.toggle(
                 {"grid": "网格", "masonry": "瀑布流"},
                 value="grid",
-                on_change=lambda _: render_grid(),
+                on_change=lambda _: render_grid.refresh(),
             ).props("")
 
-        grid_container = ui.column().classes("w-full")
-
-        def _set_label(label: str) -> None:
-            view_state["label"] = "" if label == "(全部)" else label
-            render_grid()
-
+        @ui.refreshable
         def render_grid() -> None:
-            grid_container.clear()
-            filtered = all_images
-            lbl = view_state["label"]
-            if lbl:
-                filtered = [img for img in all_images if img["label"] == lbl]
-            with grid_container:
-                if not filtered:
-                    ui.label("无匹配图片").classes("text-sm text-muted")
-                else:
-                    image_viewer(
-                        filtered,
-                        url_prefix,
-                        page_size=int(page_size_input.value or 50),
-                        columns=int(columns_input.value or 0),
-                        mode="grid" if view_mode_toggle.value == "grid" else "masonry",
-                    )
+            selected_key = tree_state.selected_key
+            filtered = directory_browser.direct_images_by_dir.get(selected_key, [])
+
+            if not selected_key:
+                ui.label("当前索引中暂无可浏览目录").classes("text-sm text-muted")
+            elif not filtered:
+                ui.label("当前目录无直属图片，请继续选择子目录").classes("text-sm text-muted")
+            else:
+                image_viewer(
+                    filtered,
+                    url_prefix,
+                    page_size=int(page_size_input.value or 50),
+                    columns=int(columns_input.value or 0),
+                    mode="grid" if view_mode_toggle.value == "grid" else "masonry",
+                )
 
         render_grid()
 

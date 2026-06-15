@@ -1,10 +1,11 @@
 import json
 from itertools import count
 from pathlib import Path
-from typing import List, Literal, TypedDict
+from typing import Literal, TypedDict
 from urllib.parse import quote
 
 from nicegui import app, ui
+from nicegui.binding import bindable_dataclass
 
 
 class ImageItem(TypedDict):
@@ -12,7 +13,8 @@ class ImageItem(TypedDict):
     label: str
 
 
-class _ViewerState(TypedDict):
+@bindable_dataclass
+class _ViewerState:
     page: int
 
 
@@ -30,46 +32,47 @@ def show_lightbox(src: str) -> None:
 
 
 def image_viewer(
-    images: List[ImageItem],
+    images: list[ImageItem],
     url_prefix: str,
     page_size: int = 50,
     columns: int = 0,
     mode: Literal["grid", "masonry"] = "grid",
-):
+) -> None:
     total = len(images)
-    state: _ViewerState = {"page": 0}
+    max_page = (total - 1) // page_size if total else 0
+    state = _ViewerState(page=0)
     viewer_id = next(_VIEWER_IDS)
 
-    with ui.column().classes("w-full gap-4"):
-        with ui.row().classes("items-center gap-4"):
-            info_label = ui.label().classes("text-xs text-muted")
-            ui.space()
-
-        content = ui.element("div").classes("w-full")
-        nav_row = ui.row().classes("items-center justify-center gap-2")
-
-    def render_page() -> None:
-        content.clear()
-        start = state["page"] * page_size
+    def _page_bounds(page: int) -> tuple[int, int]:
+        start = page * page_size
         end = min(start + page_size, total)
+        return start, end
 
-        info_label.text = f"共 {total} 张图片" + (f"  第 {start + 1}-{end} 张" if total > page_size else "")
+    def _info_text(page: int) -> str:
+        start, end = _page_bounds(page)
+        text = f"共 {total} 张图片"
+        if total > page_size:
+            text += f"  第 {start + 1}-{end} 张"
+        return text
 
+    def _page_srcs(page: int) -> list[str]:
+        start, end = _page_bounds(page)
         page_images = images[start:end]
-        srcs = [f"{url_prefix}/{quote(img['relative_path'], safe='/')}" for img in page_images]
+        return [f"{url_prefix}/{quote(img['relative_path'], safe='/')}" for img in page_images]
 
-        with content:
+    @ui.refreshable
+    def render_content() -> None:
+        srcs = _page_srcs(state.page)
+        with ui.element("div").classes("w-full"):
             if mode == "masonry":
-                _render_masonry(srcs)
+                _render_masonry(srcs, columns, viewer_id)
                 ui.run_javascript(f"window.WaifuImageViewer?.layoutMasonry({json.dumps(f'.masonry-grid-{viewer_id}')})")
             else:
-                _render_grid(srcs)
+                _render_grid(srcs, columns)
 
-        _render_nav(nav_row, state, total, page_size)
-
-    def _render_grid(srcs: list[str]) -> None:
-        if columns > 0:
-            col_css = f"repeat({columns}, 1fr)"
+    def _render_grid(srcs: list[str], grid_columns: int) -> None:
+        if grid_columns > 0:
+            col_css = f"repeat({grid_columns}, 1fr)"
         else:
             col_css = "repeat(auto-fill, minmax(160px, 1fr))"
         grid = ui.element("div").classes("w-full grid gap-2").style(f"grid-template-columns: {col_css};")
@@ -78,12 +81,12 @@ def image_viewer(
                 img = ui.image(src).classes("w-full aspect-square object-cover rounded cursor-zoom-in")
                 img.on("click", lambda _, s=src: show_lightbox(s))
 
-    def _render_masonry(srcs: list[str]) -> None:
-        if columns > 0:
-            grid_style = f"grid-template-columns: repeat({columns}, minmax(0, 1fr));"
+    def _render_masonry(srcs: list[str], grid_columns: int, current_viewer_id: int) -> None:
+        if grid_columns > 0:
+            grid_style = f"grid-template-columns: repeat({grid_columns}, minmax(0, 1fr));"
         else:
             grid_style = "grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));"
-        masonry = ui.element("div").classes(f"masonry-grid masonry-grid-{viewer_id}").style(grid_style)
+        masonry = ui.element("div").classes(f"masonry-grid masonry-grid-{current_viewer_id}").style(grid_style)
         with masonry:
             for src in srcs:
                 with ui.element("div").classes("masonry-item"):
@@ -91,29 +94,31 @@ def image_viewer(
                     img.on("click", lambda _, s=src: show_lightbox(s))
 
     def go_page(p: int) -> None:
-        max_page = (total - 1) // page_size if total else 0
-        state["page"] = max(0, min(p, max_page))
-        render_page()
-
-    def _render_nav(row: ui.row, st: _ViewerState, tot: int, ps: int) -> None:
-        row.clear()
-        if tot <= ps:
+        target_page = max(0, min(p, max_page))
+        if target_page == state.page:
             return
-        max_page = (tot - 1) // ps
-        page = st["page"]
-        with row:
-            ui.button(
-                icon="navigate_before",
-                on_click=lambda: go_page(page - 1),
-            ).props(
-                "flat dense"
-            ).set_enabled(page > 0)
-            ui.label(f"{page + 1} / {max_page + 1}")
-            ui.button(
-                icon="navigate_next",
-                on_click=lambda: go_page(page + 1),
-            ).props(
-                "flat dense"
-            ).set_enabled(page < max_page)
+        state.page = target_page
+        render_content.refresh()
 
-    render_page()
+    with ui.column().classes("w-full gap-4"):
+        with ui.row().classes("items-center gap-4"):
+            ui.label().classes("text-xs text-muted").bind_text_from(state, "page", backward=_info_text)
+            ui.space()
+
+        render_content()
+
+        if total > page_size:
+            with ui.row().classes("items-center justify-center gap-2"):
+                ui.button(
+                    icon="navigate_before",
+                    on_click=lambda: go_page(state.page - 1),
+                ).props(
+                    "flat dense"
+                ).bind_enabled_from(state, "page", backward=lambda page: page > 0)
+                ui.label().bind_text_from(state, "page", backward=lambda page: f"{page + 1} / {max_page + 1}")
+                ui.button(
+                    icon="navigate_next",
+                    on_click=lambda: go_page(state.page + 1),
+                ).props(
+                    "flat dense"
+                ).bind_enabled_from(state, "page", backward=lambda page: page < max_page)

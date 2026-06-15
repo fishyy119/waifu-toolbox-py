@@ -9,41 +9,40 @@ from ..components.layout import page_layout
 from ..services.task_manager import task_manager
 
 
-def render():
+def render() -> None:
     page_layout("/")
 
     with ui.column().classes("w-full p-6 gap-4 max-w-5xl"):
+
+        @ui.refreshable
+        def render_repos() -> None:
+            infos = list_repo_infos()
+            if not infos:
+                ui.label("暂无仓库，请使用上方按钮或 CLI 创建仓库。").classes("text-sm text-muted")
+                return
+
+            for info in infos:
+                with (
+                    ui.card()
+                    .classes("w-full cursor-pointer")
+                    .on("click", lambda _, n=info.name: ui.navigate.to(f"/repo/{n}"))
+                ):
+                    with ui.row().classes("items-center w-full justify-between"):
+                        with ui.column().classes("gap-0"):
+                            ui.label(info.name).classes("text-sm font-semibold")
+                            ui.label(info.path).classes("text-xs text-muted")
+                        with ui.row().classes("gap-2"):
+                            badge(f"{info.total_images} 张图片")
+                            badge(f"{info.label_count} 标签")
+                            feature_badge("CCIP", info.ccip_count, info.total_images)
+                            feature_badge("DreamSim", info.dreamsim_count, info.total_images)
+
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("仓库管理").classes("text-2xl font-semibold tracking-tight")
             ui.button("创建仓库", icon="add", on_click=lambda: create_dialog.open())
 
-        repo_container = ui.column().classes("w-full gap-3")
-
-        def refresh_repos():
-            repo_container.clear()
-            infos = list_repo_infos()
-            if not infos:
-                with repo_container:
-                    ui.label("暂无仓库，请使用上方按钮或 CLI 创建仓库。").classes("text-sm text-muted")
-                return
-            with repo_container:
-                for info in infos:
-                    with (
-                        ui.card()
-                        .classes("w-full cursor-pointer")
-                        .on("click", lambda _, n=info.name: ui.navigate.to(f"/repo/{n}"))
-                    ):
-                        with ui.row().classes("items-center w-full justify-between"):
-                            with ui.column().classes("gap-0"):
-                                ui.label(info.name).classes("text-sm font-semibold")
-                                ui.label(info.path).classes("text-xs text-muted")
-                            with ui.row().classes("gap-2"):
-                                badge(f"{info.total_images} 张图片")
-                                badge(f"{info.label_count} 标签")
-                                feature_badge("CCIP", info.ccip_count, info.total_images)
-                                feature_badge("DreamSim", info.dreamsim_count, info.total_images)
-
-        refresh_repos()
+        with ui.column().classes("w-full gap-3"):
+            render_repos()
 
     with ui.dialog() as create_dialog:
         with ui.card().classes("w-96"):
@@ -79,7 +78,7 @@ def render():
                     if result.ok:
                         ui.notify(result.message, type="positive")
                         create_dialog.close()
-                        refresh_repos()
+                        render_repos.refresh()
                     else:
                         ui.notify(result.message, type="negative")
 
