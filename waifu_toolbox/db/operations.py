@@ -90,6 +90,18 @@ def rename_repo(repo_name: str, new_name: str) -> Result[None]:
             return Result(False, f"仓库 '{repo_name}' 不存在")
 
 
+def delete_repo(repo_name: str) -> Result[None]:
+    with closing(open_connection()) as conn:
+        with conn:
+            result = conn.execute(
+                """DELETE FROM repos WHERE name = ?""",
+                (repo_name,),
+            )
+            if result.rowcount > 0:
+                return Result(True, f"已删除仓库 '{repo_name}' 的索引（未删除磁盘文件）")
+            return Result(False, f"仓库 '{repo_name}' 不存在")
+
+
 @dataclass
 class RepoSummary:
     name: str

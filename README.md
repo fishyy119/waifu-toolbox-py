@@ -40,6 +40,7 @@ waifu repo update -n "仓库名" --deduplicate  # 基于文件 hash 去重
 waifu repo update -n "仓库名" --set-path "仓库路径"  # 修改仓库路径
 waifu repo update -n "仓库名" --rename "新名"       # 重命名仓库
 
+waifu repo rm -n "仓库名"          # 删除仓库索引（不删除磁盘文件）
 waifu repo list                    # 列出所有仓库
 waifu repo info -n "仓库名"        # 查询仓库详细信息
 

@@ -7,6 +7,7 @@ from nicegui import ui
 from ...db.operations import (
     change_repo_path,
     deduplicate_repo,
+    delete_repo,
     flatten_repo,
     get_repo_images,
     get_repo_info,
@@ -179,6 +180,7 @@ def render(repo_name: str) -> None:
             with ui.row().classes("gap-2"):
                 _rename_button(repo_name)
                 _change_path_button(repo_name)
+                _delete_button(repo_name)
 
         if result is None:
             return
@@ -359,3 +361,38 @@ def _change_path_button(repo_name: str):
                 ui.button("确认", on_click=do_change)
 
     ui.button("修改路径", icon="folder_open", on_click=dialog.open).props("flat")
+
+
+def _delete_button(repo_name: str):
+    with ui.dialog() as dialog:
+        with ui.card().classes("w-96"):
+            ui.label("删除仓库").classes("text-sm font-semibold text-destructive-fg")
+            ui.label("仅删除数据库中的仓库索引和关联图片记录，不会删除磁盘上的原始文件。").classes("text-sm text-muted")
+            confirm_input = ui.input(label=f"输入仓库名称以确认：{repo_name}").classes("w-full")
+
+            with ui.row().classes("justify-end gap-2 mt-2"):
+                ui.button("取消", on_click=dialog.close).props("flat")
+
+                async def do_delete():
+                    if confirm_input.value != repo_name:
+                        ui.notify("请输入完整仓库名称以确认删除", type="negative")
+                        return
+                    result = await task_manager.run_result(
+                        f"删除仓库: {repo_name}",
+                        delete_repo,
+                        repo_name,
+                    )
+                    if result.ok:
+                        ui.notify(result.message, type="positive")
+                        dialog.close()
+                        ui.navigate.to("/")
+                    else:
+                        ui.notify(result.message, type="negative")
+
+                ui.button("删除仓库", icon="delete", on_click=do_delete).props("color=negative")
+
+    def open_dialog() -> None:
+        confirm_input.value = ""
+        dialog.open()
+
+    ui.button("删除仓库", icon="delete", on_click=open_dialog).props("flat color=negative")

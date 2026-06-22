@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "waifu-toolbox"
-version = "0.4.0"
+version = "0.4.1"
 description = "CLI toolbox for building image repositories, classifying anime characters, sorting images, and converting formats."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"

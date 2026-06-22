@@ -81,6 +81,25 @@ class RepoUpdateCommand(Command):
             log_error(result.message)
 
 
+class RepoRemoveCommand(Command):
+    name = "rm"
+    help = "Remove a repository index without deleting files on disk"
+
+    @staticmethod
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("-n", "--name", required=True, help="Repository name")
+
+    @staticmethod
+    def execute(args: argparse.Namespace) -> None:
+        from ..db.operations import delete_repo
+
+        result = delete_repo(args.name)
+        if result.ok:
+            log_info(result.message)
+        else:
+            log_error(result.message)
+
+
 class RepoListCommand(Command):
     name = "list"
     help = "List all repositories"
@@ -257,6 +276,7 @@ class RepoCommand(Command):
     subcommands: List[CommandType] = [
         RepoCreateCommand,
         RepoUpdateCommand,
+        RepoRemoveCommand,
         RepoListCommand,
         RepoInfoCommand,
         RepoFlattenCommand,
