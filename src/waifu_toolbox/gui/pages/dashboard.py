@@ -40,6 +40,7 @@ def render() -> None:
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("仓库管理").classes("text-2xl font-semibold tracking-tight")
             ui.button("创建仓库", icon="add", on_click=lambda: create_dialog.open())
+            # TODO: 创建时提取特征，弹窗不会立刻关闭
 
         with ui.column().classes("w-full gap-3"):
             render_repos()

@@ -63,7 +63,9 @@ def get_sort_units(root: Path) -> List[Path]:
             continue
         # 检查该目录下是否有文件（不递归子目录）
         has_image = any(f.is_file() for f in path.iterdir())
-        if has_image:
+        no_sort = (path / ".nosort").exists()
+
+        if has_image and not no_sort:
             sort_units.append(path)
 
     if any(f.is_file() for f in root.iterdir()):
@@ -118,10 +120,6 @@ def sort_images_by_perceptual_similarity(
                 continue
 
             if has_uniform_prefix(image_paths) and avoid_sorted:
-                outer.update(1)
-                continue
-
-            if (unit / ".nosort").exists():
                 outer.update(1)
                 continue
 

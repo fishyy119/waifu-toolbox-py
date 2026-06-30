@@ -15,7 +15,14 @@ from .repo import ImageRepo
 _VALID_NAME = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def _check_name(name: str) -> Result[None] | None:
+def check_name(name: str) -> Result[None] | None:
+    """
+    检查仓库命名是否合法，仅允许 ASCII 字母、数字和下划线，且不能为空。
+
+    Returns:
+        None: 合法
+        Result(False, "错误信息"): 不合法
+    """
     if not name:
         return Result(False, "名称不能为空")
     if not _VALID_NAME.match(name):
@@ -54,7 +61,7 @@ def create_repo(
     *,
     make_progress: ProgressFactory | None = None,
 ) -> Result[None]:
-    if err := _check_name(repo_name):
+    if err := check_name(repo_name):
         return err
     with closing(open_connection()) as conn:
         if conn.execute("""SELECT 1 FROM repos WHERE name = ?""", (repo_name,)).fetchone():
@@ -75,7 +82,7 @@ def create_repo(
 
 
 def rename_repo(repo_name: str, new_name: str) -> Result[None]:
-    if err := _check_name(new_name):
+    if err := check_name(new_name):
         return err
     with closing(open_connection()) as conn:
         if conn.execute("""SELECT 1 FROM repos WHERE name = ?""", (new_name,)).fetchone():
@@ -126,7 +133,9 @@ def change_repo_path(repo_name: str, new_path: Path) -> Result[None]:
             return Result(False, f"仓库 '{repo_name}' 不存在")
 
 
-def deduplicate_repo(repo_name: str, *, make_progress: ProgressFactory | None = None) -> Result[ImageRepo.DeduplicateResult]:
+def deduplicate_repo(
+    repo_name: str, *, make_progress: ProgressFactory | None = None
+) -> Result[ImageRepo.DeduplicateResult]:
     with closing(open_connection()) as conn:
         db = ImageRepo(conn)
         if not db.load(repo_name):

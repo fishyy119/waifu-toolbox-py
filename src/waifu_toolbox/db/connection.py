@@ -9,8 +9,8 @@ DB_PATH: Path = PATHS.waifu_db
 SCHEMA_VERSION = 2
 
 
-def open_connection() -> sqlite3.Connection:
-    return _open_and_init(DB_PATH)
+def open_connection(path: Path | None = None) -> sqlite3.Connection:
+    return _open_and_init(path or DB_PATH)
 
 
 def _open_and_init(path: Path) -> sqlite3.Connection:

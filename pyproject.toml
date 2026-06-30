@@ -37,14 +37,17 @@ waifu-gui = "waifu_toolbox.gui:main"
 
 [tool.pytest]
 minversion = "9.0"
-testpaths = ["test"]
+testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "-ra"]
 strict = true
-markers = []
+markers = [
+    "integration: exercises filesystem and sqlite-backed workflows",
+    "slow: relies on heavier optional dependencies or longer-running flows",
+]
 
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
-strict = ["src/waifu_toolbox"]
+strict = ["src/waifu_toolbox", "tests"]
 reportUnusedImport = "warning"
 stubPath = "./typings"

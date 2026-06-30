@@ -1,7 +1,8 @@
 # pyright: standard
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, NamedTuple, cast
+from typing import Callable, List, NamedTuple, Sequence, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,9 +14,14 @@ from .image import IMG_EXTS, load_image
 from .progress import ProgressFactory, tqdm_factory
 
 
-class PathsWithHashes(NamedTuple):
-    paths: List[Path]
-    hashes: List[bytes]
+@dataclass(frozen=True)
+class PathsWithHashes:
+    paths: Sequence[Path]
+    hashes: Sequence[bytes]
+
+    def __post_init__(self) -> None:
+        if len(self.paths) != len(self.hashes):
+            raise ValueError("图片路径与哈希数量不一致")
 
 
 class FeatureResult(NamedTuple):
@@ -59,12 +65,10 @@ def get_image_features_use_cache(
                 img_paths.extend(img_folder_root.glob(ext))
         img_hashes = [compute_file_hash(p) for p in img_paths]
     elif paths_and_hashes is not None:
-        img_paths, img_hashes = paths_and_hashes
+        img_paths = list(paths_and_hashes.paths)
+        img_hashes = list(paths_and_hashes.hashes)
     else:
         raise ValueError("必须指定 img_folder_root 或 image_paths 参数")
-
-    if len(img_paths) != len(img_hashes):
-        raise ValueError("图片路径与哈希数量不一致")
 
     extractor = _get_feature_extractor(feature_name)
 
