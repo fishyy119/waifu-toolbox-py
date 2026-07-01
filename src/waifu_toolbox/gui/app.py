@@ -1,4 +1,7 @@
 # pyright: reportUnusedFunction=false
+import base64
+import mimetypes
+import random
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, ip_address
 from pathlib import Path
 
@@ -72,6 +75,13 @@ def _install_access_guard() -> None:
 def run(dev: bool = False):
     assets_dir = Path(__file__).with_name("assets")
     app.add_static_files("/assets", assets_dir)
+
+    # 将目标 favicon 编码为 data URI，否则 NiceGUI 会自动将其转换为固定的 /favicon.ico 路径，导致浏览器错误缓存
+    favicon_path = random.choice(list((assets_dir / "favicons").glob("*.png")))
+    mime_type = mimetypes.guess_type(favicon_path.name)[0] or "image/png"
+    favicon_data = base64.b64encode(favicon_path.read_bytes()).decode("ascii")
+    favicon = f"data:{mime_type};base64,{favicon_data}"
+
     _install_access_guard()
 
     @ui.page("/")
@@ -110,7 +120,7 @@ def run(dev: bool = False):
         title="Waifu Toolbox",
         host="0.0.0.0",
         port=3039,
+        favicon=favicon,
         reload=dev,
-        favicon=assets_dir / "favicon.png",
         dark=False,
     )
