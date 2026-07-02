@@ -31,6 +31,11 @@ def show_lightbox(src: str) -> None:
     ui.run_javascript(f"window.WaifuImageViewer?.showLightbox({json.dumps(src)})")
 
 
+def _quote_relative_url_path(relative_path: str) -> str:
+    parts = [part for part in relative_path.replace("\\", "/").strip("/").split("/") if part and part != "."]
+    return "/".join(quote(part, safe="") for part in parts)
+
+
 def image_viewer(
     images: list[ImageItem],
     url_prefix: str,
@@ -58,7 +63,7 @@ def image_viewer(
     def _page_srcs(page: int) -> list[str]:
         start, end = _page_bounds(page)
         page_images = images[start:end]
-        return [f"{url_prefix}/{quote(img['relative_path'], safe='/')}" for img in page_images]
+        return [f"{url_prefix}/{_quote_relative_url_path(img['relative_path'])}" for img in page_images]
 
     @ui.refreshable
     def render_content() -> None:

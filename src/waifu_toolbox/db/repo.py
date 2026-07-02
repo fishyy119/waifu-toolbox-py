@@ -474,7 +474,7 @@ class ImageRepo:
         self.repo_path = path
         self.hashes = hashes
         self.labels = valid_labels
-        self.relative_paths = [str(p.relative_to(path)) for p in valid_paths]
+        self.relative_paths = [p.relative_to(path).as_posix() for p in valid_paths]
 
         return self.ScanInitResult(ok=True, label_mismatches=label_mismatches)
 
