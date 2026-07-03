@@ -1,5 +1,5 @@
 // @ts-check
-
+// TODO: 配置格式化
 /**
  * @typedef {{
  *   layoutMasonry: (selector: string) => void,
@@ -72,16 +72,24 @@ const waifuWindow = window;
       masonryLayouts.delete(grid);
     };
 
-    /** 根据每个 item 的归一化高度写入 grid-row-end: span N。 */
+    /**
+     * 完全由 JS 计算瀑布流坐标：每个 item 绝对定位到某列的当前底部，
+     * 第一排横向铺开，后续图片放入当前最短列。
+     */
     const relayout = () => {
       if (!grid.isConnected) {
         cleanup();
         return;
       }
 
-      const computed = getComputedStyle(grid);
-      const rowHeight = parseFloat(computed.gridAutoRows) || 4;
-      const gap = parseFloat(computed.rowGap || computed.gap) || 0;
+      const config = getMasonryConfig(grid);
+      if (config === null) {
+        return;
+      }
+
+      const { columnGap, columns, columnWidth, rowGap } = config;
+      const columnHeights = Array(columns).fill(0);
+      let placedCount = 0;
 
       for (const item of grid.querySelectorAll(".masonry-item")) {
         /** @type {HTMLElement | null} */
@@ -89,13 +97,26 @@ const waifuWindow = window;
         if (!masonryItem) {
           continue;
         }
-        const height = measureMasonryItemHeight(masonryItem);
-        if (height === null) {
-          continue;
-        }
-        const span = Math.max(1, Math.ceil((height + gap) / (rowHeight + gap)));
-        masonryItem.style.gridRowEnd = `span ${span}`;
+        masonryItem.style.width = `${columnWidth}px`;
+
+        const measuredHeight = measureMasonryItemHeight(masonryItem, columnWidth);
+        // 图片未加载完成时不猜真实比例，但仍先占一个列宽正方形位置。
+        // 这样 grid 有高度，浏览器能继续加载图片；load/error 后会用真实高度重排。
+        const height = Math.max(1, measuredHeight ?? columnWidth);
+
+        const column = chooseMasonryColumn(columnHeights, placedCount);
+        const x = column * (columnWidth + columnGap);
+        const y = columnHeights[column];
+
+        masonryItem.style.height = `${height}px`;
+        masonryItem.style.transform = `translate(${x}px, ${y}px)`;
+
+        columnHeights[column] = y + height + rowGap;
+        placedCount += 1;
       }
+
+      const nextHeight = Math.max(...columnHeights);
+      grid.style.height = `${Math.max(0, nextHeight - rowGap)}px`;
     };
 
     /** 合并同一帧内的多次重排请求，并等浏览器完成布局后再读取尺寸。 */
@@ -135,7 +156,7 @@ const waifuWindow = window;
     };
 
     if ("ResizeObserver" in window) {
-      // 列数、窗口宽度、侧栏开合都会改变列宽；列宽变化后需要重新计算 span。
+      // 列数、窗口宽度、侧栏开合都会改变列宽；列宽变化后需要重新计算坐标。
       resizeObserver = new ResizeObserver(schedule);
       resizeObserver.observe(grid);
     }
@@ -149,16 +170,69 @@ const waifuWindow = window;
   }
 
   /**
-   * 计算 masonry item 在当前列宽下应该占用的显示高度。
-   * 返回 null 表示图片尚未加载完成，本轮不写 span，等待 load/error 后再重排。
+   * 读取当前容器宽度和 CSS 变量，计算列数、列宽和间距。
+   *
+   * @param {HTMLElement} grid
+   * @returns {{ columns: number, columnWidth: number, rowGap: number, columnGap: number } | null}
+   */
+  function getMasonryConfig(grid) {
+    const width = grid.getBoundingClientRect().width;
+    if (width <= 0) {
+      return null;
+    }
+
+    const computed = getComputedStyle(grid);
+    const rowGap = readCssPixelValue(computed, "--masonry-row-gap", 4);
+    const columnGap = readCssPixelValue(computed, "--masonry-column-gap", 4);
+    const columns = parseInt(computed.getPropertyValue("--masonry-columns"), 10) || 5;
+    const columnWidth = Math.max(1, (width - columnGap * (columns - 1)) / columns);
+
+    return { columns, columnWidth, rowGap, columnGap };
+  }
+
+  /**
+   * @param {CSSStyleDeclaration} computed
+   * @param {string} property
+   * @param {number} fallback
+   * @returns {number}
+   */
+  function readCssPixelValue(computed, property, fallback) {
+    const value = parseFloat(computed.getPropertyValue(property));
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  /**
+   * 第一排保持横向优先；之后每个 item 放进当前最短列。
+   *
+   * @param {number[]} columnHeights
+   * @param {number} placedCount
+   * @returns {number}
+   */
+  function chooseMasonryColumn(columnHeights, placedCount) {
+    if (placedCount < columnHeights.length) {
+      return placedCount;
+    }
+
+    let column = 0;
+    for (let i = 1; i < columnHeights.length; i += 1) {
+      if (columnHeights[i] < columnHeights[column]) {
+        column = i;
+      }
+    }
+    return column;
+  }
+
+  /**
+   * 计算 masonry item 在给定列宽下应该占用的显示高度。
+   * 返回 null 表示图片尚未加载完成，由调用方先给临时占位并等待 load/error 后再重排。
    * 加载失败的图片按当前列宽给一个正方形占位，避免错误图片挤占 0 高度。
    *
    * @param {HTMLElement} item
+   * @param {number} width
    * @returns {number | null} 图片高度；图片尚未加载完成时返回 null，等待 load/error 后重排
    */
-  function measureMasonryItemHeight(item) {
+  function measureMasonryItemHeight(item, width) {
     const img = item.querySelector("img");
-    const width = item.getBoundingClientRect().width;
     if (!(img instanceof HTMLImageElement)) {
       return null;
     }

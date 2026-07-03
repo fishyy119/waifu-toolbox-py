@@ -208,18 +208,14 @@ def render(repo_name: str) -> None:
                     ui.label(f"（仅显示前 30 个标签，共 {len(sorted_labels)} 个）").classes("text-xs text-muted")
 
         with ui.row().classes("items-center gap-4 flex-wrap"):
-            columns_input = (
-                ui.number(
-                    label="列数",
-                    value=0,
-                    min=0,
-                    max=20,
-                    step=1,
-                    on_change=lambda _: render_grid.refresh(),
-                )
-                .classes("w-24")
-                .tooltip("0 = 自动")
-            )
+            columns_input = ui.number(
+                label="列数",
+                value=5,
+                min=1,
+                max=20,
+                step=1,
+                on_change=lambda _: render_grid.refresh(),
+            ).classes("w-24")
             page_size_input = ui.number(
                 label="每页数量",
                 value=50,
@@ -244,11 +240,12 @@ def render(repo_name: str) -> None:
             elif not filtered:
                 ui.label("当前目录无直属图片，请继续选择子目录").classes("text-sm text-muted")
             else:
+                # TODO: cookie 缓存
                 image_viewer(
                     filtered,
                     url_prefix,
                     page_size=int(page_size_input.value or 50),
-                    columns=int(columns_input.value or 0),
+                    columns=int(columns_input.value or 5),
                     mode="grid" if view_mode_toggle.value == "grid" else "masonry",
                 )
 

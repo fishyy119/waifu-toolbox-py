@@ -142,20 +142,19 @@ body {
 
 IMAGE_VIEWER_CSS = """
 .masonry-grid {
-    display: grid;
-    grid-auto-flow: row dense;
-    grid-auto-rows: 4px;
-    row-gap: 4px;
-    column-gap: 8px;
-    align-items: start;
+    position: relative;
+    width: 100%;
+    --masonry-row-gap: 4px;
+    --masonry-column-gap: 4px;
 }
 .masonry-grid .masonry-item {
+    position: absolute;
+    top: 0;
+    left: 0;
     min-width: 0;
+    box-sizing: border-box;
     overflow: hidden;
     border-radius: 0px;
-}
-.masonry-grid .masonry-item > * {
-    width: 100%;
 }
 .masonry-grid .masonry-item img {
     width: 100%;

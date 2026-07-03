@@ -40,13 +40,14 @@ def image_viewer(
     images: list[ImageItem],
     url_prefix: str,
     page_size: int = 50,
-    columns: int = 0,
+    columns: int = 5,
     mode: Literal["grid", "masonry"] = "grid",
 ) -> None:
     total = len(images)
     max_page = (total - 1) // page_size if total else 0
     state = _ViewerState(page=0)
     viewer_id = next(_VIEWER_IDS)
+    column_count = max(1, columns)
 
     def _page_bounds(page: int) -> tuple[int, int]:
         start = page * page_size
@@ -70,16 +71,13 @@ def image_viewer(
         srcs = _page_srcs(state.page)
         with ui.element("div").classes("w-full"):
             if mode == "masonry":
-                _render_masonry(srcs, columns, viewer_id)
+                _render_masonry(srcs, column_count, viewer_id)
                 ui.run_javascript(f"window.WaifuImageViewer?.layoutMasonry({json.dumps(f'.masonry-grid-{viewer_id}')})")
             else:
-                _render_grid(srcs, columns)
+                _render_grid(srcs, column_count)
 
     def _render_grid(srcs: list[str], grid_columns: int) -> None:
-        if grid_columns > 0:
-            col_css = f"repeat({grid_columns}, 1fr)"
-        else:
-            col_css = "repeat(auto-fill, minmax(160px, 1fr))"
+        col_css = f"repeat({grid_columns}, 1fr)"
         grid = ui.element("div").classes("w-full grid gap-2").style(f"grid-template-columns: {col_css};")
         with grid:
             for src in srcs:
@@ -87,15 +85,13 @@ def image_viewer(
                 img.on("click", lambda _, s=src: show_lightbox(s))
 
     def _render_masonry(srcs: list[str], grid_columns: int, current_viewer_id: int) -> None:
-        if grid_columns > 0:
-            grid_style = f"grid-template-columns: repeat({grid_columns}, minmax(0, 1fr));"
-        else:
-            grid_style = "grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));"
+        grid_style = f"--masonry-columns: {grid_columns};"
         masonry = ui.element("div").classes(f"masonry-grid masonry-grid-{current_viewer_id}").style(grid_style)
         with masonry:
             for src in srcs:
                 with ui.element("div").classes("masonry-item"):
-                    img = ui.image(src)
+                    # 完全自绘，不用框架封装后的 img
+                    img = ui.element("img").props(f"src={json.dumps(src)} loading=eager decoding=async")
                     img.on("click", lambda _, s=src: show_lightbox(s))
 
     def go_page(p: int) -> None:
