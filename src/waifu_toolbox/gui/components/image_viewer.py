@@ -106,8 +106,6 @@ def image_viewer(
             ui.label().classes("text-xs text-muted").bind_text_from(state, "page", backward=_info_text)
             ui.space()
 
-        render_content()
-
         if total > page_size:
             with ui.row().classes("items-center justify-center gap-2"):
                 ui.button(
@@ -123,3 +121,5 @@ def image_viewer(
                 ).props(
                     "flat dense"
                 ).bind_enabled_from(state, "page", backward=lambda page: page < max_page)
+
+        render_content()
