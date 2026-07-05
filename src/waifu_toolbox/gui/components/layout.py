@@ -1,5 +1,6 @@
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TypedDict
 
 from nicegui import ui
@@ -20,149 +21,9 @@ THEME: Theme = {
     "border": "#e4e4e7",
 }
 
-SHADCN_CSS = """
-:root {
-    --background: #ffffff;
-    --foreground: #09090b;
-    --card: #ffffff;
-    --card-foreground: #09090b;
-    --primary: #18181b;
-    --primary-foreground: #fafafa;
-    --secondary: #f4f4f5;
-    --secondary-foreground: #18181b;
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
-    --accent: #f4f4f5;
-    --accent-foreground: #18181b;
-    --destructive: #ef4444;
-    --destructive-foreground: #fafafa;
-    --border: #e4e4e7;
-    --input: #e4e4e7;
-    --ring: #18181b;
-    --radius: 0.5rem;
-
-    --success: #16a34a;
-    --success-bg: #f0fdf4;
-    --success-border: #bbf7d0;
-    --warning: #a16207;
-    --warning-bg: #fefce8;
-    --warning-border: #fef08a;
-    --destructive-bg: #fef2f2;
-    --destructive-border: #fecaca;
-
-    --q-primary: var(--primary);
-    --q-positive: var(--success);
-    --q-negative: var(--destructive);
-    --q-warning: var(--warning);
-}
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 "Helvetica Neue", Arial, sans-serif;
-    color: var(--foreground);
-    background: var(--background);
-}
-.q-card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-}
-.q-separator {
-    background-color: var(--border) !important;
-}
-.q-badge {
-    border-radius: 9999px;
-    font-weight: 500;
-}
-.q-linear-progress {
-    border-radius: 9999px;
-}
-.q-field--outlined .q-field__control {
-    border-radius: calc(var(--radius) - 2px);
-}
-
-/* Shadcn semantic utilities */
-.text-foreground { color: var(--foreground); }
-.text-muted { color: var(--muted-foreground); }
-.text-destructive-fg { color: var(--destructive); }
-.text-success { color: var(--success); }
-.bg-muted { background-color: var(--muted); }
-.bg-accent { background-color: var(--accent); }
-.border-default { border-color: var(--border); }
-
-/* Badge variants */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 10px;
-    font-size: 12px;
-    font-weight: 500;
-    border-radius: 9999px;
-    border: 1px solid var(--border);
-    color: var(--muted-foreground);
-}
-.badge-success {
-    background: var(--success-bg);
-    border-color: var(--success-border);
-    color: var(--success);
-}
-.badge-warning {
-    background: var(--warning-bg);
-    border-color: var(--warning-border);
-    color: var(--warning);
-}
-.badge-destructive {
-    background: var(--destructive-bg);
-    border-color: var(--destructive-border);
-    color: var(--destructive);
-}
-
-/* Navigation */
-.nav-link {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: calc(var(--radius) - 2px);
-    color: var(--muted-foreground);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: background-color 0.15s, color 0.15s;
-    box-sizing: border-box;
-}
-.nav-link:hover {
-    background-color: var(--accent);
-    color: var(--accent-foreground);
-}
-.nav-link-active {
-    background-color: var(--accent);
-    color: var(--foreground);
-    font-weight: 600;
-}
-"""
-
-IMAGE_VIEWER_CSS = """
-.masonry-grid {
-    position: relative;
-    width: 100%;
-    --masonry-row-gap: 4px;
-    --masonry-column-gap: 4px;
-}
-.masonry-grid .masonry-item {
-    position: absolute;
-    top: 0;
-    left: 0;
-    min-width: 0;
-    box-sizing: border-box;
-    overflow: hidden;
-    border-radius: 0px;
-}
-.masonry-grid .masonry-item img {
-    width: 100%;
-    height: auto;
-    display: block;
-    cursor: zoom-in;
-}
-"""
+_ASSETS_DIR = Path(__file__).parent.parent / "assets"
+SHADCN_CSS = (_ASSETS_DIR / "shadcn.css").read_text(encoding="utf-8")
+IMAGE_VIEWER_CSS = (_ASSETS_DIR / "image_viewer.css").read_text(encoding="utf-8")
 
 _shared_assets_ready = False
 

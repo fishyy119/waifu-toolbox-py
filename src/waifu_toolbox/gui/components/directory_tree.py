@@ -1,42 +1,12 @@
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TypedDict
 
 from nicegui import ui
 
-DIRECTORY_TREE_CSS = """
-.repo-directory-tree {
-    gap: 2px;
-}
-.repo-directory-tree-node {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    min-height: 30px;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: calc(var(--radius) - 2px);
-    color: var(--muted-foreground);
-    cursor: pointer;
-    user-select: none;
-}
-.repo-directory-tree-node:hover {
-    background: var(--accent);
-    color: var(--accent-foreground);
-}
-.repo-directory-tree-node-selected {
-    background: var(--accent);
-    color: var(--foreground);
-    font-weight: 600;
-}
-.repo-directory-tree-icon {
-    width: 1rem;
-    min-width: 1rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-"""
+_ASSETS_DIR = Path(__file__).parent.parent / "assets"
+DIRECTORY_TREE_CSS = (_ASSETS_DIR / "directory_tree.css").read_text(encoding="utf-8")
 
 _directory_tree_assets_ready = False
 
