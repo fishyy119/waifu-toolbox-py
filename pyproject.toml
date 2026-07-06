@@ -51,3 +51,11 @@ typeCheckingMode = "standard"
 strict = ["src/waifu_toolbox", "tests"]
 reportUnusedImport = "warning"
 stubPath = "./typings"
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+known_first_party = ["waifu_toolbox"]

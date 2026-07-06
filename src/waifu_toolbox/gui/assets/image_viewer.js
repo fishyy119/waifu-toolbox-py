@@ -1,5 +1,5 @@
 // @ts-check
-// TODO: 配置格式化
+
 /**
  * @typedef {{
  *   layoutMasonry: (selector: string) => void,
@@ -91,7 +91,7 @@ const waifuWindow = window;
       const columnHeights = Array(columns).fill(0);
       let placedCount = 0;
 
-      for (const item of grid.querySelectorAll(".masonry-item")) {
+      for (const item of grid.querySelectorAll('.masonry-item')) {
         /** @type {HTMLElement | null} */
         const masonryItem = item instanceof HTMLElement ? item : null;
         if (!masonryItem) {
@@ -134,28 +134,28 @@ const waifuWindow = window;
 
     /** 为当前 grid 内的图片绑定加载事件；已完成的图片也会主动安排一次重排。 */
     const bindGridImages = () => {
-      for (const img of grid.querySelectorAll("img")) {
+      for (const img of grid.querySelectorAll('img')) {
         if (!(img instanceof HTMLImageElement)) {
           continue;
         }
         if (!boundImages.has(img)) {
           boundImages.add(img);
-          img.addEventListener("load", schedule);
-          img.addEventListener("error", () => {
-            img.dataset.waifuMasonryError = "1";
+          img.addEventListener('load', schedule);
+          img.addEventListener('error', () => {
+            img.dataset.waifuMasonryError = '1';
             schedule();
           });
         }
         if (img.complete) {
           if (img.naturalWidth === 0) {
-            img.dataset.waifuMasonryError = "1";
+            img.dataset.waifuMasonryError = '1';
           }
           schedule();
         }
       }
     };
 
-    if ("ResizeObserver" in window) {
+    if ('ResizeObserver' in window) {
       // 列数、窗口宽度、侧栏开合都会改变列宽；列宽变化后需要重新计算坐标。
       resizeObserver = new ResizeObserver(schedule);
       resizeObserver.observe(grid);
@@ -182,9 +182,9 @@ const waifuWindow = window;
     }
 
     const computed = getComputedStyle(grid);
-    const rowGap = readCssPixelValue(computed, "--masonry-row-gap", 4);
-    const columnGap = readCssPixelValue(computed, "--masonry-column-gap", 4);
-    const columns = parseInt(computed.getPropertyValue("--masonry-columns"), 10) || 5;
+    const rowGap = readCssPixelValue(computed, '--masonry-row-gap', 4);
+    const columnGap = readCssPixelValue(computed, '--masonry-column-gap', 4);
+    const columns = parseInt(computed.getPropertyValue('--masonry-columns'), 10) || 5;
     const columnWidth = Math.max(1, (width - columnGap * (columns - 1)) / columns);
 
     return { columns, columnWidth, rowGap, columnGap };
@@ -232,7 +232,7 @@ const waifuWindow = window;
    * @returns {number | null} 图片高度；图片尚未加载完成时返回 null，等待 load/error 后重排
    */
   function measureMasonryItemHeight(item, width) {
-    const img = item.querySelector("img");
+    const img = item.querySelector('img');
     if (!(img instanceof HTMLImageElement)) {
       return null;
     }
@@ -241,7 +241,7 @@ const waifuWindow = window;
       return (width * img.naturalHeight) / img.naturalWidth;
     }
 
-    if (!img.complete && img.dataset.waifuMasonryError !== "1") {
+    if (!img.complete && img.dataset.waifuMasonryError !== '1') {
       return null;
     }
 
@@ -256,27 +256,27 @@ const waifuWindow = window;
    */
   function showLightbox(src) {
     /** @type {HTMLDivElement} */
-    const overlay = document.createElement("div");
+    const overlay = document.createElement('div');
     overlay.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "z-index:99999",
-      "background:rgba(0,0,0,0.85)",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "cursor:zoom-out",
-    ].join(";");
+      'position:fixed',
+      'inset:0',
+      'z-index:99999',
+      'background:rgba(0,0,0,0.85)',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'cursor:zoom-out',
+    ].join(';');
 
     /** @type {HTMLImageElement} */
-    const image = document.createElement("img");
+    const image = document.createElement('img');
     image.src = src;
     image.style.cssText = [
-      "max-width:90vw",
-      "max-height:90vh",
-      "object-fit:contain",
-      "border-radius:4px",
-    ].join(";");
+      'max-width:90vw',
+      'max-height:90vh',
+      'object-fit:contain',
+      'border-radius:4px',
+    ].join(';');
 
     overlay.appendChild(image);
     overlay.onclick = () => overlay.remove();

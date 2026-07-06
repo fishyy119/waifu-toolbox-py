@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": true,
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
+    // DOM：识别 window / document / requestAnimationFrame
+  },
+  "include": [
+    "**/*.js"
+  ]
+}

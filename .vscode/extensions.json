@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "esbenp.prettier-vscode", // JS / CSS 格式化
+        "ms-python.black-formatter", // Python 格式化
+        "ms-python.isort" // Python import 排序
+    ]
+}
