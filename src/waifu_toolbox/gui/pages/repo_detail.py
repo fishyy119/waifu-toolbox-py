@@ -30,6 +30,7 @@ from ..components.layout import (
     page_layout,
 )
 from ..services.task_manager import task_manager
+from ..utils.storage import prefs
 
 
 @dataclass
@@ -116,6 +117,7 @@ def _default_directory_key(browser: _DirectoryBrowser) -> str:
 
 
 def render(repo_name: str) -> None:
+
     info = get_repo_info(repo_name)
     result = get_repo_images(repo_name) if info is not None else None
     all_images: list[ImageItem] = []
@@ -123,17 +125,44 @@ def render(repo_name: str) -> None:
         all_images = [{"relative_path": img.relative_path, "label": img.label} for img in result.images]
 
     directory_browser = _build_directory_browser(all_images)
-    tree_state = DirectoryTreeState(selected_key=_default_directory_key(directory_browser))
+    default_key = _default_directory_key(directory_browser)
+    saved_selected_dir = prefs.selected_dirs.get(repo_name, "") or default_key
+    if saved_selected_dir not in directory_browser.direct_images_by_dir:
+        saved_selected_dir = default_key
+    tree_state = DirectoryTreeState(selected_key=saved_selected_dir)
+
+    @ui.refreshable
+    def render_grid() -> None:
+        selected_key = tree_state.selected_key
+        filtered = directory_browser.direct_images_by_dir.get(selected_key, [])
+
+        if not selected_key:
+            ui.label("当前索引中暂无可浏览目录").classes("text-sm text-muted")
+        elif not filtered:
+            ui.label("当前目录无直属图片，请继续选择子目录").classes("text-sm text-muted")
+        else:
+            image_viewer(
+                filtered,
+                url_prefix,
+                page_size=int(page_size_input.value or 50),
+                columns=int(columns_input.value or 5),
+                mode="grid" if view_mode_toggle.value == "grid" else "masonry",
+            )
 
     def render_directory_panel() -> None:
         if not directory_browser.tree_nodes:
             ui.label("当前索引中暂无可浏览目录").classes("text-sm text-muted px-2")
             return
 
+        def _on_dir_selected(key: str) -> None:
+            if key:
+                prefs.selected_dirs[repo_name] = key
+            render_grid.refresh()
+
         directory_tree(
             nodes=directory_browser.tree_nodes,
             state=tree_state,
-            on_selection_change=lambda _: render_grid.refresh(),
+            on_selection_change=_on_dir_selected,
         )
 
     page_layout(
@@ -208,46 +237,38 @@ def render(repo_name: str) -> None:
                     ui.label(f"（仅显示前 30 个标签，共 {len(sorted_labels)} 个）").classes("text-xs text-muted")
 
         with ui.row().classes("items-center gap-4 flex-wrap"):
-            columns_input = ui.number(
-                label="列数",
-                value=5,
-                min=1,
-                max=20,
-                step=1,
-                on_change=lambda _: render_grid.refresh(),
-            ).classes("w-24")
-            page_size_input = ui.number(
-                label="每页数量",
-                value=50,
-                min=10,
-                max=500,
-                step=10,
-                on_change=lambda _: render_grid.refresh(),
-            ).classes("w-24")
-            view_mode_toggle = ui.toggle(
-                {"grid": "网格", "masonry": "瀑布流"},
-                value="grid",
-                on_change=lambda _: render_grid.refresh(),
-            ).props("")
-
-        @ui.refreshable
-        def render_grid() -> None:
-            selected_key = tree_state.selected_key
-            filtered = directory_browser.direct_images_by_dir.get(selected_key, [])
-
-            if not selected_key:
-                ui.label("当前索引中暂无可浏览目录").classes("text-sm text-muted")
-            elif not filtered:
-                ui.label("当前目录无直属图片，请继续选择子目录").classes("text-sm text-muted")
-            else:
-                # TODO: cookie 缓存
-                image_viewer(
-                    filtered,
-                    url_prefix,
-                    page_size=int(page_size_input.value or 50),
-                    columns=int(columns_input.value or 5),
-                    mode="grid" if view_mode_toggle.value == "grid" else "masonry",
+            columns_input = (
+                ui.number(
+                    label="列数",
+                    min=1,
+                    max=20,
+                    step=1,
+                    on_change=lambda _: render_grid.refresh(),
                 )
+                .classes("w-24")
+                .bind_value(prefs, "viewer_columns")
+            )
+
+            page_size_input = (
+                ui.number(
+                    label="每页数量",
+                    min=10,
+                    max=500,
+                    step=10,
+                    on_change=lambda _: render_grid.refresh(),
+                )
+                .classes("w-24")
+                .bind_value(prefs, "viewer_page_size")
+            )
+
+            view_mode_toggle = (
+                ui.toggle(
+                    {"grid": "网格", "masonry": "瀑布流"},
+                    on_change=lambda _: render_grid.refresh(),
+                )
+                .props("")
+                .bind_value(prefs, "viewer_view_mode")
+            )
 
         render_grid()
 

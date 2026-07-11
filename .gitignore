@@ -1,6 +1,7 @@
 database/**/*.npz
 database/**/*.pkl
 profile*.txt
+.nicegui
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
