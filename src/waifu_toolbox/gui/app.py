@@ -1,7 +1,6 @@
 # pyright: reportUnusedFunction=false
 import base64
 import mimetypes
-import os
 import random
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, ip_address
 from pathlib import Path
@@ -20,12 +19,10 @@ from .pages import (
     sort,
     tasks,
 )
-from .utils.storage import load as storage_load
 from .utils.storage import save as storage_save
 
 _access_guard_installed = False
 _ALLOWED_LAN = IPv4Network("192.168.0.0/16")
-os.environ["NICEGUI_STORAGE_PATH"] = (Path.home() / ".waifu").as_posix()
 
 
 class _LocalNetworkOnlyMiddleware:
@@ -87,7 +84,6 @@ def run(dev: bool = False):
     favicon = f"data:{mime_type};base64,{favicon_data}"
 
     _install_access_guard()
-    storage_load()
 
     @ui.page("/")
     def index():
@@ -129,5 +125,4 @@ def run(dev: bool = False):
         favicon=favicon,
         reload=dev,
         dark=False,
-        storage_secret="waifu-toolbox-local",
     )
