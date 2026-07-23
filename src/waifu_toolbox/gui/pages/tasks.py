@@ -1,18 +1,19 @@
-from nicegui import ui
+from typing import Any
+
+from nicegui import PageArguments, ui
 
 from ..components.badges import status_badge
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render() -> None:
-    page_layout("/tasks")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-3xl"):
 
         @ui.refreshable
         def render_tasks() -> None:
-            tasks = task_manager.tasks
+            tasks = ctx.task_manager.tasks
             if not tasks:
                 ui.label("暂无任务").classes("text-sm text-muted")
                 return
@@ -39,7 +40,7 @@ def render() -> None:
                         ui.label(t.error).classes("text-xs text-destructive-fg mt-1")
 
         def clear_completed_tasks() -> None:
-            task_manager.clear_completed()
+            ctx.task_manager.clear_completed()
             render_tasks.refresh()
 
         with ui.row().classes("items-center justify-between w-full"):
@@ -49,4 +50,8 @@ def render() -> None:
         with ui.column().classes("w-full gap-2"):
             render_tasks()
 
-        ui.timer(0.5, render_tasks.refresh)
+        def refresh_tasks(_: Any) -> None:
+            render_tasks.refresh()
+
+        unsubscribe = ctx.task_manager.subscribe(refresh_tasks)
+        ctx.register_route_disposer(unsubscribe)

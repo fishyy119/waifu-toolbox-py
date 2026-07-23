@@ -1,16 +1,15 @@
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ...db.operations import create_repo, list_repo_infos
 from ..components.badges import badge, feature_badge
 from ..components.file_picker import folder_picker
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render() -> None:
-    page_layout("/")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-5xl"):
 
@@ -68,7 +67,7 @@ def render() -> None:
                         ui.notify("请输入有效的文件夹路径", type="negative")
                         return
 
-                    result = await task_manager.run_result(
+                    result = await ctx.task_manager.run_result(
                         f"创建仓库: {name}",
                         create_repo,
                         name,

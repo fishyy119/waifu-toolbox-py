@@ -19,12 +19,16 @@ class _ViewerState:
 
 
 _VIEWER_IDS = count()
+_served_repo_dirs: dict[str, str] = {}
 
 
 def serve_repo_images(repo_name: str, repo_path: Path) -> str:
-    url_path = f"/repo-images/{quote(repo_name, safe='')}"
-    app.add_media_files(url_path, repo_path)
-    return url_path
+    key = repo_path.as_posix()
+    if key not in _served_repo_dirs:
+        url_path = f"/repo-images/{len(_served_repo_dirs)}-{quote(repo_name, safe='')}"
+        app.add_media_files(url_path, repo_path)
+        _served_repo_dirs[key] = url_path
+    return _served_repo_dirs[key]
 
 
 def show_lightbox(src: str) -> None:

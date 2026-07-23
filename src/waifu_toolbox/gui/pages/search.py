@@ -1,19 +1,18 @@
 from pathlib import Path
 from urllib.parse import quote
 
-from nicegui import app, ui
+from nicegui import PageArguments, app, ui
 
 from ...db.operations import list_repos, search_similar
 from ..components.file_picker import file_picker
 from ..components.image_viewer import show_lightbox
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext, SearchResultEntry
 
 _IMAGE_FILETYPES = [("图片", "*.png *.jpg *.jpeg *.webp *.bmp *.gif")]
 
 
-def render():
-    page_layout("/search")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-5xl"):
         ui.label("相似图片搜索").classes("text-2xl font-semibold tracking-tight")
@@ -21,25 +20,65 @@ def render():
 
         repos = list_repos()
         repo_names = [r.name for r in repos]
+        state = ctx.search_state
+        if repo_names and state.repo_name not in repo_names:
+            state.repo_name = repo_names[0]
+        if not repo_names:
+            state.repo_name = ""
 
         with ui.card().classes("w-full"):
-            repo_select = ui.select(
+            ui.select(
                 label="搜索仓库",
                 options=repo_names,
-                value=repo_names[0] if repo_names else None,
-            ).classes("w-64")
+                value=state.repo_name or None,
+            ).classes("w-64").bind_value(state, "repo_name")
 
-            query_input = file_picker(label="查询图片", filetypes=_IMAGE_FILETYPES)
+            file_picker(label="查询图片", filetypes=_IMAGE_FILETYPES).bind_value(state, "query_path")
 
             with ui.row().classes("items-center gap-4"):
-                top_k = ui.number(label="结果数量", value=10, min=1, max=50, step=1).classes("w-32")
-                skip_update = ui.checkbox("跳过自动更新索引", value=True)
+                ui.number(label="结果数量", min=1, max=50, step=1).classes("w-32").bind_value(state, "top_k")
+                ui.checkbox("跳过自动更新索引").bind_value(state, "skip_update")
 
-        results_container = ui.column().classes("w-full")
+        @ui.refreshable
+        def render_results() -> None:
+            if state.loading:
+                ui.label("搜索中...").classes("text-sm text-muted")
+                return
 
-        async def do_search():
-            repo = repo_select.value
-            query = query_input.value
+            if state.error:
+                ui.label(state.error).classes("text-sm text-destructive-fg")
+                return
+
+            if not ctx.search_results:
+                ui.label("暂无搜索结果").classes("text-sm text-muted")
+                return
+
+            ui.label(f"Top {len(ctx.search_results)} 结果").classes("text-sm font-semibold")
+            grid = (
+                ui.element("div")
+                .classes("w-full grid gap-3")
+                .style("grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));")
+            )
+            with grid:
+                for result in ctx.search_results:
+                    img_path = Path(result.path)
+                    with ui.card().classes("p-1 overflow-hidden").tight():
+                        if img_path.exists():
+                            src = _serve_single_image(img_path)
+                            img = ui.image(src).classes("w-full aspect-square object-cover cursor-zoom-in")
+                            img.on("click", lambda _, s=src: show_lightbox(s))
+                        else:
+                            ui.label("文件不存在").classes("text-xs text-destructive-fg p-4")
+                        with ui.column().classes("px-2 py-1.5 gap-0"):
+                            ui.label(result.label).classes("text-xs font-semibold")
+                            ui.label(f"相似度: {result.similarity:.4f}").classes("text-xs text-muted")
+                            ui.label(img_path.as_posix()).classes(
+                                "text-xs text-muted leading-snug whitespace-normal break-all"
+                            )
+
+        async def do_search() -> None:
+            repo = state.repo_name
+            query = state.query_path
             if not repo:
                 ui.notify("请选择仓库", type="negative")
                 return
@@ -47,50 +86,36 @@ def render():
                 ui.notify("请输入有效的图片路径", type="negative")
                 return
 
-            results_container.clear()
-            with results_container:
-                ui.label("搜索中...").classes("text-sm text-muted")
+            state.loading = True
+            state.error = ""
+            render_results.refresh()
 
-            result = await task_manager.run_result(
+            result = await ctx.task_manager.run_result(
                 f"相似搜索: {repo}",
                 search_similar,
                 repo,
                 Path(query),
-                int(top_k.value or 10),
-                skip_update=bool(skip_update.value),
+                int(state.top_k or 10),
+                skip_update=bool(state.skip_update),
             )
 
-            results_container.clear()
+            state.loading = False
             if not result.ok or result.data is None:
+                ctx.search_results = []
+                state.error = result.message
                 ui.notify(result.message, type="negative")
+                render_results.refresh()
                 return
-            results = result.data
 
-            with results_container:
-                ui.label(f"Top {len(results)} 结果").classes("text-sm font-semibold")
-                grid = (
-                    ui.element("div")
-                    .classes("w-full grid gap-3")
-                    .style("grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));")
-                )
-                with grid:
-                    for r in results:
-                        img_path = Path(r.path)
-                        with ui.card().classes("p-1 overflow-hidden").tight():
-                            if img_path.exists():
-                                src = _serve_single_image(img_path)
-                                img = ui.image(src).classes("w-full aspect-square object-cover cursor-zoom-in")
-                                img.on("click", lambda _, s=src: show_lightbox(s))
-                            else:
-                                ui.label("文件不存在").classes("text-xs text-destructive-fg p-4")
-                            with ui.column().classes("px-2 py-1.5 gap-0"):
-                                ui.label(r.label).classes("text-xs font-semibold")
-                                ui.label(f"相似度: {r.similarity:.4f}").classes("text-xs text-muted")
-                                ui.label(img_path.as_posix()).classes(
-                                    "text-xs text-muted leading-snug whitespace-normal break-all"
-                                )
+            state.error = ""
+            ctx.search_results = [
+                SearchResultEntry(label=item.label, path=item.path, similarity=item.similarity) for item in result.data
+            ]
+            render_results.refresh()
 
         ui.button("搜索", icon="search", on_click=do_search)
+        with ui.column().classes("w-full"):
+            render_results()
 
 
 _served_dirs: dict[str, str] = {}

@@ -1,15 +1,14 @@
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ...db.operations import list_repos
 from ..components.file_picker import folder_picker
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render():
-    page_layout("/classify")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-3xl"):
         ui.label("图片分类").classes("text-2xl font-semibold tracking-tight")
@@ -64,7 +63,7 @@ def render():
                     return
                 from ...core.classification import classify_by_ccip
 
-                task_manager.submit(
+                ctx.task_manager.submit(
                     f"分类: {Path(folder).name}",
                     classify_by_ccip,
                     repo_select.value,
@@ -74,7 +73,7 @@ def render():
             else:
                 from ...core.classification import just_cluster_by_ccip
 
-                task_manager.submit(
+                ctx.task_manager.submit(
                     f"聚类: {Path(folder).name}",
                     just_cluster_by_ccip,
                     Path(folder),

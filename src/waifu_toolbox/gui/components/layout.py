@@ -1,10 +1,10 @@
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from nicegui import ui
-from nicegui.binding import bindable_dataclass
+
+from ..context import DrawerPanel, GuiContext
 
 
 class Theme(TypedDict):
@@ -27,7 +27,6 @@ IMAGE_VIEWER_CSS = (_ASSETS_DIR / "image_viewer.css").read_text(encoding="utf-8"
 
 _shared_assets_ready = False
 
-
 _NAV_ITEMS = [
     ("仓库列表", "/"),
     ("分类", "/classify"),
@@ -42,26 +41,6 @@ _NAV_SECONDARY = [
 ]
 
 
-@dataclass(frozen=True)
-class DrawerPanel:
-    key: str
-    label: str
-    render: Callable[[], None]
-    icon: str = "menu"  # 在顶栏展示的切换图标
-
-
-@dataclass(frozen=True)
-class PageLayoutOptions:
-    drawer_panels: Sequence[DrawerPanel] = ()  # 需要附加的其他侧边栏面板，默认会包含一个页面导航面板
-    default_drawer_panel: str | None = None  # 默认选中面板名
-    include_default_navigation: bool = True  # 保留默认面板
-
-
-@bindable_dataclass
-class DrawerState:
-    panel: str
-
-
 def ensure_shared_assets() -> None:
     global _shared_assets_ready
     if _shared_assets_ready:
@@ -72,25 +51,20 @@ def ensure_shared_assets() -> None:
     _shared_assets_ready = True
 
 
-def page_layout(path: str, *, options: PageLayoutOptions | None = None) -> None:
+def render_shell(ctx: GuiContext, routes: dict[str, Callable[..., Any]]) -> None:
     ensure_shared_assets()
     ui.dark_mode(False)
 
-    config = options or PageLayoutOptions()
-    panels = list(config.drawer_panels)
-
-    # 如果需要默认的导航页面板，加入列表中
-    if config.include_default_navigation or not panels:
-        panels.append(
-            DrawerPanel(key="navigation", label="页面导航", render=lambda: _render_navigation(path), icon="dashboard")
-        )
-
-    panel_map = {panel.key: panel for panel in panels}
-    default_panel = config.default_drawer_panel if config.default_drawer_panel in panel_map else panels[0].key
-    drawer_state = DrawerState(panel=default_panel)
+    navigation_panel = DrawerPanel(
+        key="navigation",
+        label="页面导航",
+        render=lambda: _render_navigation(ctx.shell_state.current_path),
+        icon="dashboard",
+    )
+    ctx.set_navigation_panel(navigation_panel)
 
     left_drawer = ui.left_drawer(value=True).style(
-        "background: var(--background); border-right: 1px solid var(--border);" "padding: 1rem 0.75rem;"
+        "background: var(--background); border-right: 1px solid var(--border); padding: 1rem 0.75rem;"
     )
 
     with left_drawer:
@@ -98,19 +72,34 @@ def page_layout(path: str, *, options: PageLayoutOptions | None = None) -> None:
 
             @ui.refreshable
             def render_drawer_panel() -> None:
-                panel_map[drawer_state.panel].render()
+                panel = ctx.current_panel
+                if panel is None:
+                    ui.label("暂无可用面板").classes("text-sm text-muted")
+                    return
+                panel.render()
 
             render_drawer_panel()
 
-    def _toggle_drawer_panel() -> None:
-        current_index = next((index for index, panel in enumerate(panels) if panel.key == drawer_state.panel), 0)
-        next_panel_key = panels[(current_index + 1) % len(panels)].key
-
-        if next_panel_key not in panel_map or next_panel_key == drawer_state.panel:
+    @ui.refreshable
+    def render_header_controls() -> None:
+        panels = ctx.drawer_panels
+        if len(panels) <= 1:
             return
+        panel_map = {panel.key: panel for panel in panels}
+        current_key = ctx.shell_state.panel
+        current_panel = panel_map.get(current_key, panels[0])
+        ui.button(icon=current_panel.icon, on_click=ctx.toggle_drawer_panel).props("flat dense color=dark")
 
-        drawer_state.panel = next_panel_key
+    def refresh_drawer() -> None:
         render_drawer_panel.refresh()
+
+    def refresh_header() -> None:
+        render_header_controls.refresh()
+
+    ctx.register_shell_callbacks(
+        refresh_drawer=refresh_drawer,
+        refresh_header=refresh_header,
+    )
 
     with (
         ui.header()
@@ -120,17 +109,12 @@ def page_layout(path: str, *, options: PageLayoutOptions | None = None) -> None:
             "border-bottom: 1px solid var(--border); box-shadow: none;"
         )
     ):
-        # 切换侧栏收起展开
         ui.button(icon="menu", on_click=left_drawer.toggle).props("flat dense color=dark")
-
-        # 切换侧栏内容
-        if len(panels) > 1:
-            panel_toggle_button = ui.button(on_click=_toggle_drawer_panel).props("flat dense color=dark")
-            panel_toggle_button.bind_icon_from(drawer_state, "panel", backward=lambda key: panel_map[key].icon)
-            with panel_toggle_button:
-                ui.tooltip().bind_text_from(drawer_state, "panel", backward=lambda key: panel_map[key].label)
-
+        render_header_controls()
         ui.label("Waifu Toolbox").classes("text-base font-semibold tracking-tight px-3")
+
+    with ui.column().classes("w-full"):
+        ui.sub_pages(routes=routes, data={"ctx": ctx}).classes("w-full")
 
 
 def _render_navigation(path: str) -> None:
@@ -149,7 +133,14 @@ def _nav_link(label: str, href: str, current_path: str) -> None:
         active = current_path == "/" or current_path.startswith("/repo")
     else:
         active = current_path.startswith(href)
-    cls = "nav-link no-underline"
+
+    cls = "nav-link"
     if active:
         cls += " nav-link-active"
-    ui.link(label, href).classes(cls)
+
+    ui.button(
+        label,
+        on_click=lambda _, target=href: ui.navigate.to(target),
+    ).props(
+        "flat no-caps"
+    ).classes(f"{cls} justify-start")

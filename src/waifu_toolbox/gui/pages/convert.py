@@ -1,14 +1,13 @@
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ..components.file_picker import folder_picker
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render():
-    page_layout("/convert")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-3xl"):
         ui.label("格式转换").classes("text-2xl font-semibold tracking-tight")
@@ -33,7 +32,7 @@ def render():
 
             from ...core.convert import convert_images
 
-            task_manager.submit(
+            ctx.task_manager.submit(
                 f"转换: {Path(folder).name}",
                 convert_images,
                 Path(folder),

@@ -1,14 +1,18 @@
-# pyright: reportUnusedFunction=false
+# pyright: reportUnknownMemberType=false
 import base64
 import mimetypes
 import random
+from collections.abc import Callable
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, ip_address
 from pathlib import Path
+from typing import Any
 
-from nicegui import app, ui
+from nicegui import app, context, ui
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from .components.layout import render_shell
+from .context import GuiContext
 from .pages import (
     classify,
     convert,
@@ -22,6 +26,7 @@ from .pages import (
 from .utils.storage import save as storage_save
 
 _access_guard_installed = False
+_static_assets_mounted = False
 _ALLOWED_LAN = IPv4Network("192.168.0.0/16")
 
 
@@ -73,9 +78,28 @@ def _install_access_guard() -> None:
     _access_guard_installed = True
 
 
-def run(dev: bool = False):
-    assets_dir = Path(__file__).with_name("assets")
+def _mount_static_assets(assets_dir: Path) -> None:
+    global _static_assets_mounted
+
+    if _static_assets_mounted:
+        return
+
     app.add_static_files("/assets", assets_dir)
+    _static_assets_mounted = True
+
+
+def _build_root(routes: dict[str, Callable[..., Any]]) -> Callable[[], None]:
+    def root() -> None:
+        gui_ctx = GuiContext()
+        context.client.on_disconnect(gui_ctx.cleanup)
+        render_shell(gui_ctx, routes)
+
+    return root
+
+
+def run(dev: bool = False) -> None:
+    assets_dir = Path(__file__).with_name("assets")
+    _mount_static_assets(assets_dir)
 
     # 将目标 favicon 编码为 data URI，否则 NiceGUI 会自动将其转换为固定的 /favicon.ico 路径，导致浏览器错误缓存
     favicon_path = random.choice(list((assets_dir / "favicons").glob("*.png")))
@@ -84,41 +108,19 @@ def run(dev: bool = False):
     favicon = f"data:{mime_type};base64,{favicon_data}"
 
     _install_access_guard()
-
-    @ui.page("/")
-    def index():
-        dashboard.render()
-
-    @ui.page("/repo/{repo_name}")
-    def repo_page(repo_name: str):
-        repo_detail.render(repo_name)
-
-    @ui.page("/classify")
-    def classify_page():
-        classify.render()
-
-    @ui.page("/sort")
-    def sort_page():
-        sort.render()
-
-    @ui.page("/convert")
-    def convert_page():
-        convert.render()
-
-    @ui.page("/search")
-    def search_page():
-        search.render()
-
-    @ui.page("/tasks")
-    def tasks_page():
-        tasks.render()
-
-    @ui.page("/settings")
-    def settings_page():
-        settings.render()
-
-    app.on_shutdown(storage_save)  # pyright: ignore[reportUnknownMemberType]
+    routes = {
+        "/": dashboard.render,
+        "/repo/{repo_name}": repo_detail.render,
+        "/classify": classify.render,
+        "/sort": sort.render,
+        "/convert": convert.render,
+        "/search": search.render,
+        "/tasks": tasks.render,
+        "/settings": settings.render,
+    }
+    app.on_shutdown(storage_save)
     ui.run(
+        root=_build_root(routes),
         title="Waifu Toolbox",
         host="0.0.0.0",
         port=3039,

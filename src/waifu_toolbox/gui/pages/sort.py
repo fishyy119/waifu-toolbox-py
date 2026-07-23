@@ -1,14 +1,13 @@
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ..components.file_picker import folder_picker
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render():
-    page_layout("/sort")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-3xl"):
         ui.label("图片排序").classes("text-2xl font-semibold tracking-tight")
@@ -27,7 +26,7 @@ def render():
 
             from ...core.sort import sort_images_by_perceptual_similarity
 
-            task_manager.submit(
+            ctx.task_manager.submit(
                 f"排序: {Path(folder).name}",
                 sort_images_by_perceptual_similarity,
                 Path(folder),

@@ -10,6 +10,8 @@ from ...utils.progress import ProgressReporter
 from ...utils.result import Result
 
 T = TypeVar("T")
+TaskEventType = Literal["created", "started", "progress", "completed", "failed", "cleared"]
+TaskSubscriber = Callable[["TaskEvent"], None]
 
 
 @dataclass
@@ -25,6 +27,13 @@ class TaskInfo:
     created_at: datetime = field(default_factory=datetime.now)
 
 
+@dataclass(frozen=True)
+class TaskEvent:
+    type: TaskEventType
+    task_id: str | None = None
+    task: TaskInfo | None = None
+
+
 @dataclass
 class _QueueItem:
     task_id: str
@@ -36,20 +45,24 @@ class _QueueItem:
 
 
 class _TaskProgress:
-    def __init__(self, info: TaskInfo, total: int):
+    def __init__(self, info: TaskInfo, total: int, notify: Callable[[], None]) -> None:
         self._info = info
         self._total = max(total, 1)
         self._current = 0
+        self._notify = notify
 
     def update(self, n: int = 1) -> None:
         self._current += n
         self._info.progress = self._current / self._total
+        self._notify()
 
     def set_postfix(self, text: str) -> None:
         self._info.progress_text = text
+        self._notify()
 
     def close(self) -> None:
         self._info.progress = 1.0
+        self._notify()
 
 
 def _exception_message(exc: BaseException) -> str:
@@ -64,6 +77,9 @@ class TaskManager:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._worker_task: asyncio.Task[None] | None = None
         self._counter = 0
+        self._subscribers: dict[int, TaskSubscriber] = {}
+        self._next_subscriber_id = 0
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     @property
     def tasks(self) -> list[TaskInfo]:
@@ -72,6 +88,22 @@ class TaskManager:
     @property
     def active_count(self) -> int:
         return sum(1 for t in self._tasks.values() if t.status in ("pending", "running"))
+
+    def subscribe(self, callback: TaskSubscriber) -> Callable[[], None]:
+        self._next_subscriber_id += 1
+        subscriber_id = self._next_subscriber_id
+        self._subscribers[subscriber_id] = callback
+
+        def unsubscribe() -> None:
+            self._subscribers.pop(subscriber_id, None)
+
+        return unsubscribe
+
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        if self._loop is not None:
+            return self._loop
+        self._loop = asyncio.get_running_loop()
+        return self._loop
 
     def _enqueue(
         self,
@@ -82,14 +114,17 @@ class TaskManager:
         format_result: Callable[[Any], str] | None,
         waiter: asyncio.Future[Any] | None = None,
     ) -> str:
+        loop = self._ensure_loop()
+        self._loop = loop
         self._counter += 1
         task_id = f"{self._counter:04d}"
         info = TaskInfo(id=task_id, name=name)
         self._tasks[task_id] = info
         self._order.append(task_id)
         self._queue.put_nowait(_QueueItem(task_id, func, args, kwargs, format_result, waiter))
+        self._dispatch_event(TaskEvent(type="created", task_id=task_id, task=info))
         if self._worker_task is None or self._worker_task.done():
-            self._worker_task = asyncio.get_running_loop().create_task(self._worker())
+            self._worker_task = loop.create_task(self._worker())
         return task_id
 
     def submit(
@@ -117,6 +152,7 @@ class TaskManager:
         **kwargs: Any,
     ) -> T:
         loop = asyncio.get_running_loop()
+        self._loop = loop
         waiter: asyncio.Future[T] = loop.create_future()
         self._enqueue(
             name,
@@ -146,6 +182,7 @@ class TaskManager:
         for tid in to_remove:
             del self._tasks[tid]
             self._order.remove(tid)
+        self._dispatch_event(TaskEvent(type="cleared"))
 
     async def _worker(self) -> None:
         while True:
@@ -155,6 +192,7 @@ class TaskManager:
                 return
             info = self._tasks[item.task_id]
             info.status = "running"
+            self._dispatch_event(TaskEvent(type="started", task_id=item.task_id, task=info))
 
             sig = inspect.signature(item.func)
             if "make_progress" in sig.parameters:
@@ -164,7 +202,12 @@ class TaskManager:
                         ti.progress_desc = desc
                         ti.progress = 0.0
                         ti.progress_text = ""
-                        return _TaskProgress(ti, total)
+                        self._dispatch_event(TaskEvent(type="progress", task_id=ti.id, task=ti))
+                        return _TaskProgress(
+                            ti,
+                            total,
+                            lambda: self._dispatch_event(TaskEvent(type="progress", task_id=ti.id, task=ti)),
+                        )
 
                     return factory
 
@@ -176,6 +219,7 @@ class TaskManager:
                 if isinstance(result, Result) and not result.ok:
                     info.status = "failed"
                     info.error = result.message
+                    self._dispatch_event(TaskEvent(type="failed", task_id=item.task_id, task=info))
                 else:
                     info.status = "completed"
                     info.progress = 1.0
@@ -186,13 +230,37 @@ class TaskManager:
                             info.result_text = item.format_result(result)
                         except Exception:
                             info.result_text = str(result) if result is not None else ""
+                    self._dispatch_event(TaskEvent(type="completed", task_id=item.task_id, task=info))
                 if item.waiter is not None and not item.waiter.done():
                     item.waiter.set_result(result)
             except Exception as e:
                 info.status = "failed"
                 info.error = _exception_message(e)
+                self._dispatch_event(TaskEvent(type="failed", task_id=item.task_id, task=info))
                 if item.waiter is not None and not item.waiter.done():
                     item.waiter.set_exception(e)
+
+    def _dispatch_event(self, event: TaskEvent) -> None:
+        if self._loop is None:
+            self._emit_event(event)
+            return
+
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is self._loop:
+            self._emit_event(event)
+        else:
+            self._loop.call_soon_threadsafe(self._emit_event, event)
+
+    def _emit_event(self, event: TaskEvent) -> None:
+        for callback in list(self._subscribers.values()):
+            try:
+                callback(event)
+            except Exception:
+                continue
 
 
 task_manager = TaskManager()

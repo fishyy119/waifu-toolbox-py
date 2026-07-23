@@ -2,7 +2,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ...db.operations import (
     change_repo_path,
@@ -23,13 +23,8 @@ from ..components.directory_tree import (
 )
 from ..components.file_picker import folder_picker
 from ..components.image_viewer import ImageItem, image_viewer, serve_repo_images
-from ..components.layout import (
-    THEME,
-    DrawerPanel,
-    PageLayoutOptions,
-    page_layout,
-)
-from ..services.task_manager import task_manager
+from ..components.layout import THEME
+from ..context import DrawerPanel, GuiContext
 from ..utils.storage import prefs
 
 
@@ -116,7 +111,7 @@ def _default_directory_key(browser: _DirectoryBrowser) -> str:
     return browser.preorder_keys[0] if browser.preorder_keys else ""
 
 
-def render(repo_name: str) -> None:
+def render(ctx: GuiContext, repo_name: str, page_args: PageArguments) -> None:
 
     info = get_repo_info(repo_name)
     result = get_repo_images(repo_name) if info is not None else None
@@ -165,19 +160,17 @@ def render(repo_name: str) -> None:
             on_selection_change=_on_dir_selected,
         )
 
-    page_layout(
-        f"/repo/{repo_name}",
-        options=PageLayoutOptions(
-            drawer_panels=[
-                DrawerPanel(
-                    key="tree",
-                    label="目录树",
-                    render=render_directory_panel,
-                    icon="account_tree",
-                )
-            ],
-            default_drawer_panel="tree",
-        ),
+    ctx.activate_route(
+        page_args.path,
+        drawer_panels=[
+            DrawerPanel(
+                key="tree",
+                label="目录树",
+                render=render_directory_panel,
+                icon="account_tree",
+            )
+        ],
+        default_panel="tree",
     )
 
     with ui.column().classes("w-full p-6 gap-4 max-w-5xl"):
@@ -199,17 +192,17 @@ def render(repo_name: str) -> None:
             ui.label("仓库管理").classes("text-sm font-semibold")
 
             with ui.row().classes("gap-2 mt-2 flex-wrap"):
-                _update_section(repo_name)
-                _purge_button(repo_name)
-                _deduplicate_button(repo_name)
-                _flatten_button(repo_name)
+                _update_section(ctx, repo_name)
+                _purge_button(ctx, repo_name)
+                _deduplicate_button(ctx, repo_name)
+                _flatten_button(ctx, repo_name)
 
             ui.separator().classes("my-2")
 
             with ui.row().classes("gap-2"):
-                _rename_button(repo_name)
-                _change_path_button(repo_name)
-                _delete_button(repo_name)
+                _rename_button(ctx, repo_name)
+                _change_path_button(ctx, repo_name)
+                _delete_button(ctx, repo_name)
 
         if result is None:
             return
@@ -273,9 +266,9 @@ def render(repo_name: str) -> None:
         render_grid()
 
 
-def _update_section(repo_name: str):
+def _update_section(ctx: GuiContext, repo_name: str) -> None:
     def do_update(ccip: bool, dreamsim: bool):
-        task_manager.submit(
+        ctx.task_manager.submit(
             f"更新仓库: {repo_name}",
             update_repo,
             repo_name,
@@ -291,9 +284,9 @@ def _update_section(repo_name: str):
         ui.item("同步 + 提取全部特征", on_click=lambda: do_update(True, True))
 
 
-def _purge_button(repo_name: str):
+def _purge_button(ctx: GuiContext, repo_name: str) -> None:
     async def do_purge():
-        result = await task_manager.run_result(f"清理失效: {repo_name}", purge_repo, repo_name)
+        result = await ctx.task_manager.run_result(f"清理失效: {repo_name}", purge_repo, repo_name)
         ui.notify(result.message, type="positive" if result.ok else "negative")
 
     ui.button("清理失效", icon="cleaning_services", on_click=do_purge).props("outline").tooltip(
@@ -301,17 +294,17 @@ def _purge_button(repo_name: str):
     )
 
 
-def _deduplicate_button(repo_name: str):
+def _deduplicate_button(ctx: GuiContext, repo_name: str) -> None:
     async def do_dedup():
-        result = await task_manager.run_result(f"去重: {repo_name}", deduplicate_repo, repo_name)
+        result = await ctx.task_manager.run_result(f"去重: {repo_name}", deduplicate_repo, repo_name)
         ui.notify(result.message, type="positive" if result.ok else "negative")
 
     ui.button("去重", icon="filter_alt", on_click=do_dedup).props("outline").tooltip("基于文件哈希删除重复图片")
 
 
-def _flatten_button(repo_name: str):
+def _flatten_button(ctx: GuiContext, repo_name: str) -> None:
     def do_flatten():
-        task_manager.submit(
+        ctx.task_manager.submit(
             f"扁平化: {repo_name}",
             flatten_repo,
             repo_name,
@@ -321,7 +314,7 @@ def _flatten_button(repo_name: str):
     ui.button("扁平化", icon="folder_copy", on_click=do_flatten).props("outline").tooltip("将子目录结构展平为单层")
 
 
-def _rename_button(repo_name: str):
+def _rename_button(ctx: GuiContext, repo_name: str) -> None:
     with ui.dialog() as dialog:
         with ui.card().classes("w-80"):
             ui.label("重命名仓库").classes("text-sm font-semibold")
@@ -333,7 +326,7 @@ def _rename_button(repo_name: str):
                     new_name = new_name_input.value
                     if not new_name or new_name == repo_name:
                         return
-                    result = await task_manager.run_result(
+                    result = await ctx.task_manager.run_result(
                         f"重命名仓库: {repo_name}",
                         rename_repo,
                         repo_name,
@@ -351,7 +344,7 @@ def _rename_button(repo_name: str):
     ui.button("重命名", icon="edit", on_click=dialog.open).props("flat")
 
 
-def _change_path_button(repo_name: str):
+def _change_path_button(ctx: GuiContext, repo_name: str) -> None:
     with ui.dialog() as dialog:
         with ui.card().classes("w-96"):
             ui.label("修改仓库路径").classes("text-sm font-semibold")
@@ -363,7 +356,7 @@ def _change_path_button(repo_name: str):
                     new_path = path_input.value
                     if not new_path:
                         return
-                    result = await task_manager.run_result(
+                    result = await ctx.task_manager.run_result(
                         f"修改路径: {repo_name}",
                         change_repo_path,
                         repo_name,
@@ -381,7 +374,7 @@ def _change_path_button(repo_name: str):
     ui.button("修改路径", icon="folder_open", on_click=dialog.open).props("flat")
 
 
-def _delete_button(repo_name: str):
+def _delete_button(ctx: GuiContext, repo_name: str) -> None:
     with ui.dialog() as dialog:
         with ui.card().classes("w-96"):
             ui.label("删除仓库").classes("text-sm font-semibold text-destructive-fg")
@@ -395,7 +388,7 @@ def _delete_button(repo_name: str):
                     if confirm_input.value != repo_name:
                         ui.notify("请输入完整仓库名称以确认删除", type="negative")
                         return
-                    result = await task_manager.run_result(
+                    result = await ctx.task_manager.run_result(
                         f"删除仓库: {repo_name}",
                         delete_repo,
                         repo_name,

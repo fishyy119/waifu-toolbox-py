@@ -1,12 +1,11 @@
-from nicegui import ui
+from nicegui import PageArguments, ui
 
 from ...db.operations import clear_cache
-from ..components.layout import page_layout
-from ..services.task_manager import task_manager
+from ..context import GuiContext
 
 
-def render():
-    page_layout("/settings")
+def render(ctx: GuiContext, page_args: PageArguments) -> None:
+    ctx.activate_route(page_args.path)
 
     with ui.column().classes("w-full p-6 gap-4 max-w-3xl"):
         ui.label("设置").classes("text-2xl font-semibold tracking-tight")
@@ -18,7 +17,7 @@ def render():
             with ui.row().classes("gap-2 mt-3"):
 
                 async def do_clear(ccip: bool = False, dreamsim: bool = False):
-                    result = await task_manager.run_result(
+                    result = await ctx.task_manager.run_result(
                         "清理特征缓存",
                         clear_cache,
                         ccip=ccip,

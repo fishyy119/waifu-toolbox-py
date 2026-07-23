@@ -5,7 +5,7 @@ from nicegui import ui
 
 def badge(text: str, variant: str = "") -> None:
     cls = f"badge {variant}".rstrip() if variant else "badge"
-    ui.html(f'<span class="{cls}">{text}</span>')
+    ui.label(text).classes(cls)
 
 
 def feature_badge(name: str, count: int, total: int) -> None:
