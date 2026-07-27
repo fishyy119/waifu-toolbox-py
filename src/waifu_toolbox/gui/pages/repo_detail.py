@@ -25,6 +25,7 @@ from ..components.file_picker import folder_picker
 from ..components.image_viewer import ImageItem, image_viewer, serve_repo_images
 from ..components.layout import THEME
 from ..context import DrawerPanel, GuiContext
+from ..utils.sorting import localized_sort_key
 from ..utils.storage import prefs
 
 
@@ -59,7 +60,7 @@ def _build_tree_nodes(
     preorder_keys: list[str],
 ) -> list[DirectoryTreeNode]:
     tree_nodes: list[DirectoryTreeNode] = []
-    for branch_name in sorted(branches):
+    for branch_name in sorted(branches, key=localized_sort_key):
         branch = branches[branch_name]
         preorder_keys.append(branch.key)
         direct_images_by_dir.setdefault(branch.key, [])
