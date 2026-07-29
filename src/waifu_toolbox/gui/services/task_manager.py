@@ -1,10 +1,11 @@
 import asyncio
 import inspect
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
-from typing import Any, Callable, Literal, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 
 from ...utils.progress import ProgressReporter
 from ...utils.result import Result
@@ -140,7 +141,7 @@ class TaskManager:
             func,
             tuple(args),
             dict(kwargs),
-            cast(Callable[[Any], str] | None, format_result),
+            cast("Callable[[Any], str] | None", format_result),
         )
 
     async def run(
@@ -159,8 +160,8 @@ class TaskManager:
             func,
             tuple(args),
             dict(kwargs),
-            cast(Callable[[Any], str] | None, format_result),
-            cast(asyncio.Future[Any], waiter),
+            cast("Callable[[Any], str] | None", format_result),
+            cast("asyncio.Future[Any]", waiter),
         )
         return await waiter
 

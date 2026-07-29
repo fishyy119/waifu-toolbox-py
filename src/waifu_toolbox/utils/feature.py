@@ -1,8 +1,9 @@
 # pyright: standard
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, NamedTuple, Sequence, cast
+from typing import NamedTuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,8 +26,8 @@ class PathsWithHashes:
 
 
 class FeatureResult(NamedTuple):
-    features: List[NDArray[np.float32]]
-    paths: List[Path]
+    features: list[NDArray[np.float32]]
+    paths: list[Path]
 
 
 def _extract_ccip_feature(img_path: Path) -> FeatureType:
@@ -53,9 +54,9 @@ def get_image_features_use_cache(
     make_progress: ProgressFactory | None = None,
 ) -> FeatureResult:
     """获取指定文件夹下所有图片的特征，考虑缓存"""
-    features: List[FeatureType | None] = []
-    img_paths: List[Path] = []
-    img_hashes: List[bytes] = []
+    features: list[FeatureType | None] = []
+    img_paths: list[Path] = []
+    img_hashes: list[bytes] = []
     if img_folder_root is not None:
         exts = IMG_EXTS
         for ext in exts:
@@ -74,8 +75,8 @@ def get_image_features_use_cache(
 
     factory = make_progress or tqdm_factory
     bar = factory(len(img_paths), "提取图片特征")
-    extract_queue: List[int] = []
-    for img_idx, (img_path, img_hash) in enumerate(zip(img_paths, img_hashes)):
+    extract_queue: list[int] = []
+    for img_idx, (_img_path, img_hash) in enumerate(zip(img_paths, img_hashes, strict=False)):
         cached_feature = cache.get(feature_name, img_hash)
         if cached_feature is not None:
             features.append(cached_feature)
@@ -92,5 +93,5 @@ def get_image_features_use_cache(
 
     bar.close()
     cache.save_cache(feature_name)
-    features_casted = cast(List[FeatureType], features)
+    features_casted = cast("list[FeatureType]", features)
     return FeatureResult(features_casted, img_paths)

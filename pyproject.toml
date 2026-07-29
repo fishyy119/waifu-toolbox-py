@@ -29,7 +29,12 @@ dependencies = [
 gui = ["nicegui>=3.14.0,<4", "pydantic>=2,<3", "pyicu-wheels>=2.15.2,<2.16"]
 
 [dependency-groups]
-dev = ["line-profiler>=5.0,<6", "pytest>=9.0,<10", "pyright>=1.1,<2"]
+dev = [
+    "line-profiler>=5.0,<6",
+    "pytest>=9.0,<10",
+    "pyright>=1.1,<2",
+    "ruff>=0.15.22,<1",
+]
 
 [project.scripts]
 waifu = "waifu_toolbox.cli:main"
@@ -52,10 +57,32 @@ strict = ["src/waifu_toolbox", "tests"]
 reportUnusedImport = "warning"
 stubPath = "./typings"
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ["py312"]
+target-version = "py312"
 
-[tool.isort]
-profile = "black"
-known_first_party = ["waifu_toolbox"]
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle（原 flake8）
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",
+    "RUF",
+    "SIM",
+    "C4",
+    "TC",
+]
+
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "B"]
+"src/waifu_toolbox/gui/**/*.py" = ["SIM117"] # with 嵌套
+
+[tool.ruff.lint.isort]
+known-first-party = ["waifu_toolbox"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

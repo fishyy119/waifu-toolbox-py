@@ -6,7 +6,6 @@ from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
@@ -19,7 +18,7 @@ from ..utils.progress import ProgressFactory
 from ..utils.result import Result
 
 
-def _extract_features_to_list(features: NDArray | List[NDArray], indices: List[int] | None = None) -> List[NDArray]:
+def _extract_features_to_list(features: NDArray | list[NDArray], indices: list[int] | None = None) -> list[NDArray]:
     """将 (N,D) 的特征向量集合（或特征向量列表）按索引提取为 List[(D,)]"""
     if isinstance(features, list):
         return [features[i] for i in indices] if indices is not None else features
@@ -81,12 +80,12 @@ def classify_by_ccip(
         # -----------------------------
         all_features = _extract_features_to_list(labeled_features) + to_classify_features
         major_keys = labeled_hashes + to_classify_paths  # 这就相当于主键了
-        label_dict = {p: c for p, c in zip(labeled_hashes, labeled_categories)}
+        label_dict = dict(zip(labeled_hashes, labeled_categories, strict=False))
 
         # -----------------------------
         # 4. 特征聚类
         # -----------------------------
-        mapping: List[int] = ccip_clustering(all_features)  # pyright: ignore
+        mapping: list[int] = ccip_clustering(all_features)  # pyright: ignore
         # ? AttributeError: 'list' object has no attribute 'tolist'
         # 库的类型注解标错了。。。。
 
@@ -95,15 +94,15 @@ def classify_by_ccip(
         # -----------------------------
         @dataclass
         class ClusterInfo:
-            known_labels: List[str] = field(default_factory=list)
-            to_classify_indices: List[int] = field(default_factory=list)
+            known_labels: list[str] = field(default_factory=list)
+            to_classify_indices: list[int] = field(default_factory=list)
             label: str = "__unknown__"
 
-        cluster_index: Dict[int, ClusterInfo] = defaultdict(ClusterInfo)
+        cluster_index: dict[int, ClusterInfo] = defaultdict(ClusterInfo)
 
         assert len(major_keys) == len(mapping)
         hashes_len = len(labeled_hashes)
-        for ind, (mkey, cluster_id) in enumerate(zip(major_keys, mapping)):
+        for ind, (mkey, cluster_id) in enumerate(zip(major_keys, mapping, strict=False)):
             if isinstance(mkey, bytes):  # 这种类型就代表已经在数据库中有标注了
                 cluster_index[cluster_id].known_labels.append(label_dict[mkey])
             else:  # 待分类图片，减去已标注图片数，得到待分类图片索引
@@ -118,7 +117,7 @@ def classify_by_ccip(
         # -----------------------------
         # INDEX: 按投票分类创建索引
         # -----------------------------
-        category_index: Dict[str, List[int]] = defaultdict(list)
+        category_index: dict[str, list[int]] = defaultdict(list)
         for _, cluster_info in cluster_index.items():
             category_index[cluster_info.label].extend(cluster_info.to_classify_indices)
 
@@ -134,9 +133,9 @@ def classify_by_ccip(
             if len(indices) < 5:  #  这是聚类方法需要的最小样本数量，过小应跳过
                 continue
             candidate_features = _extract_features_to_list(to_classify_features, indices)
-            candidate_mapping: List[int] = ccip_clustering(candidate_features)  # type: ignore
+            candidate_mapping: list[int] = ccip_clustering(candidate_features)  # type: ignore
 
-            for p_ind, c_id2 in zip(indices, candidate_mapping):
+            for p_ind, c_id2 in zip(indices, candidate_mapping, strict=False):
                 path = to_classify_paths[p_ind]
                 cluster_dir = report_root / category / f"{c_id2}"
                 cluster_dir.mkdir(parents=True, exist_ok=True)
@@ -169,7 +168,7 @@ def just_cluster_by_ccip(
         if not to_cluster_paths:
             return Result(False, "未找到待分类图片")
 
-        mapping: List[int] = ccip_clustering(to_cluster_features)  # pyright: ignore
+        mapping: list[int] = ccip_clustering(to_cluster_features)  # pyright: ignore
         # ? AttributeError: 'list' object has no attribute 'tolist'
         # 库的类型注解标错了。。。。
 
@@ -185,7 +184,7 @@ def just_cluster_by_ccip(
             report_root.mkdir(exist_ok=True)
             file_op = shutil.copy2
 
-        for path, cluster_id in zip(to_cluster_paths, mapping):
+        for path, cluster_id in zip(to_cluster_paths, mapping, strict=False):
             cluster_dir = report_root / f"{cluster_id}"
             cluster_dir.mkdir(parents=True, exist_ok=True)
 

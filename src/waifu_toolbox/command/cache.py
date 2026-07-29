@@ -1,5 +1,5 @@
 import argparse
-from typing import List
+from typing import ClassVar
 
 from ..utils.console import log_error, log_info
 from .base import Command, CommandType
@@ -30,7 +30,7 @@ class CacheCommand(Command):
     name = "cache"
     help = "Manage feature cache"
 
-    subcommands: List[CommandType] = [CacheClearCommand]
+    subcommands: ClassVar[list[CommandType]] = [CacheClearCommand]
 
     @staticmethod
     def add_arguments(parser: argparse.ArgumentParser) -> None:

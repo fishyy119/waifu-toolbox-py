@@ -1,11 +1,11 @@
 # pyright: standard
 import random
-from collections import Counter
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Literal, Set, TypeAlias
+from typing import Literal
 
-from imgutils.tagging import get_camie_tags, get_deepgelbooru_tags, get_wd14_tags
+from imgutils.tagging import get_camie_tags
 
 from waifu_toolbox.utils.console import log_debug, log_info
 from waifu_toolbox.utils.image import load_images_from_folder
@@ -13,7 +13,7 @@ from waifu_toolbox.utils.image import load_images_from_folder
 random.seed(42)
 
 
-Level: TypeAlias = Literal["A", "B", "C", "D"]
+type Level = Literal["A", "B", "C", "D"]
 
 
 def rate_to_level(rate: float) -> Level:
@@ -29,7 +29,7 @@ def rate_to_level(rate: float) -> Level:
 
 # 测试函数
 def test_folder(folder: Path, tagger: Callable):
-    summary: Dict[Level, Set[str]] = {
+    summary: dict[Level, set[str]] = {
         "A": set(),
         "B": set(),
         "C": set(),
@@ -48,7 +48,7 @@ def test_folder(folder: Path, tagger: Callable):
             success_count = 0
 
             for img in all_images:
-                tags: Dict[str, float] = tagger(img)
+                tags: dict[str, float] = tagger(img)
                 if tags:
                     success_count += 1
                     max_key = max(tags.items(), key=lambda x: x[1])[0]

@@ -32,7 +32,7 @@ def test_ccip(folder: Path):
     report_root.mkdir(exist_ok=True)
 
     # 遍历所有图片
-    for path, cluster_id in zip(file_paths, mapping):
+    for path, cluster_id in zip(file_paths, mapping, strict=False):
         cluster_dir = report_root / f"{cluster_id}"
         cluster_dir.mkdir(exist_ok=True)
         shutil.copy2(path, cluster_dir / path.name)

@@ -44,42 +44,41 @@ def render(ctx: GuiContext, page_args: PageArguments) -> None:
         with ui.column().classes("w-full gap-3"):
             render_repos()
 
-    with ui.dialog() as create_dialog:
-        with ui.card().classes("w-96"):
-            ui.label("创建仓库").classes("text-lg font-semibold")
-            ui.label("从已分类的图片文件夹创建仓库索引").classes("text-sm text-muted")
+    with ui.dialog() as create_dialog, ui.card().classes("w-96"):
+        ui.label("创建仓库").classes("text-lg font-semibold")
+        ui.label("从已分类的图片文件夹创建仓库索引").classes("text-sm text-muted")
 
-            name_input = ui.input(label="仓库名称", placeholder="输入仓库名称").classes("w-full")
-            path_input = folder_picker(label="图片文件夹路径")
-            ccip_check = ui.checkbox("提取 CCIP 特征")
-            dreamsim_check = ui.checkbox("提取 DreamSim 特征")
+        name_input = ui.input(label="仓库名称", placeholder="输入仓库名称").classes("w-full")
+        path_input = folder_picker(label="图片文件夹路径")
+        ccip_check = ui.checkbox("提取 CCIP 特征")
+        dreamsim_check = ui.checkbox("提取 DreamSim 特征")
 
-            with ui.row().classes("justify-end gap-2 mt-2"):
-                ui.button("取消", on_click=create_dialog.close).props("flat")
+        with ui.row().classes("justify-end gap-2 mt-2"):
+            ui.button("取消", on_click=create_dialog.close).props("flat")
 
-                async def do_create():
-                    name = name_input.value
-                    path = path_input.value
-                    if not name:
-                        ui.notify("请输入仓库名称", type="negative")
-                        return
-                    if not path or not Path(path).exists():
-                        ui.notify("请输入有效的文件夹路径", type="negative")
-                        return
+            async def do_create():
+                name = name_input.value
+                path = path_input.value
+                if not name:
+                    ui.notify("请输入仓库名称", type="negative")
+                    return
+                if not path or not Path(path).exists():
+                    ui.notify("请输入有效的文件夹路径", type="negative")
+                    return
 
-                    result = await ctx.task_manager.run_result(
-                        f"创建仓库: {name}",
-                        create_repo,
-                        name,
-                        Path(path),
-                        extract_ccip=bool(ccip_check.value),
-                        extract_dreamsim=bool(dreamsim_check.value),
-                    )
-                    if result.ok:
-                        ui.notify(result.message, type="positive")
-                        create_dialog.close()
-                        render_repos.refresh()
-                    else:
-                        ui.notify(result.message, type="negative")
+                result = await ctx.task_manager.run_result(
+                    f"创建仓库: {name}",
+                    create_repo,
+                    name,
+                    Path(path),
+                    extract_ccip=bool(ccip_check.value),
+                    extract_dreamsim=bool(dreamsim_check.value),
+                )
+                if result.ok:
+                    ui.notify(result.message, type="positive")
+                    create_dialog.close()
+                    render_repos.refresh()
+                else:
+                    ui.notify(result.message, type="negative")
 
-                ui.button("创建", on_click=do_create)
+            ui.button("创建", on_click=do_create)

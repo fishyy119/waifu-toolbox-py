@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import List
+from typing import ClassVar
 
 from rich import box, print
 from rich.console import Console
@@ -273,7 +273,7 @@ class RepoCommand(Command):
     name = "repo"
     help = "Manage feature repositories"
 
-    subcommands: List[CommandType] = [
+    subcommands: ClassVar[list[CommandType]] = [
         RepoCreateCommand,
         RepoUpdateCommand,
         RepoRemoveCommand,

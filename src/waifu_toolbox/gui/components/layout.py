@@ -67,18 +67,17 @@ def render_shell(ctx: GuiContext, routes: dict[str, Callable[..., Any]]) -> None
         "background: var(--background); border-right: 1px solid var(--border); padding: 1rem 0.75rem;"
     )
 
-    with left_drawer:
-        with ui.column().classes("w-full gap-2 mt-1"):
+    with left_drawer, ui.column().classes("w-full gap-2 mt-1"):
 
-            @ui.refreshable
-            def render_drawer_panel() -> None:
-                panel = ctx.current_panel
-                if panel is None:
-                    ui.label("暂无可用面板").classes("text-sm text-muted")
-                    return
-                panel.render()
+        @ui.refreshable
+        def render_drawer_panel() -> None:
+            panel = ctx.current_panel
+            if panel is None:
+                ui.label("暂无可用面板").classes("text-sm text-muted")
+                return
+            panel.render()
 
-            render_drawer_panel()
+        render_drawer_panel()
 
     @ui.refreshable
     def render_header_controls() -> None:
@@ -129,10 +128,7 @@ def _render_navigation(path: str) -> None:
 
 
 def _nav_link(label: str, href: str, current_path: str) -> None:
-    if href == "/":
-        active = current_path == "/" or current_path.startswith("/repo")
-    else:
-        active = current_path.startswith(href)
+    active = current_path == "/" or current_path.startswith("/repo") if href == "/" else current_path.startswith(href)
 
     cls = "nav-link"
     if active:

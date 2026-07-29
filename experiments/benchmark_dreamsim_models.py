@@ -1,9 +1,10 @@
 import argparse
 import json
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, Sequence, cast
+from typing import Literal, cast
 
 import numpy as np
 from PIL import Image
@@ -151,7 +152,7 @@ def benchmark_model(
 
     distance_start = time.perf_counter()
     embedding_matrix = np.stack(embeddings, axis=0)
-    distance_matrix = compute_dreamsim_distance_matrix(embedding_matrix)
+    compute_dreamsim_distance_matrix(embedding_matrix)
     distance_seconds = time.perf_counter() - distance_start
 
     total_seconds = load_seconds + warmup_seconds + embedding_seconds + distance_seconds
@@ -213,7 +214,7 @@ def main() -> None:
     image_paths = collect_benchmark_images(args.images_root, args.count)
 
     results: list[BenchmarkResult] = []
-    for model_name in cast(Sequence[DreamSimModelName], args.models):
+    for model_name in cast("Sequence[DreamSimModelName]", args.models):
         results.append(
             benchmark_model(
                 model_name=model_name,

@@ -1,12 +1,13 @@
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
-from typing import Callable, NamedTuple, cast
+from typing import NamedTuple, cast
 
 import numpy as np
+import torch
+from dreamsim import PerceptualModel, dreamsim
 from numpy.typing import NDArray
 from PIL.Image import Image as ImageType
-from dreamsim import PerceptualModel, dreamsim
-import torch
 from torch import Tensor
 
 from ..paths import PATHS
@@ -57,6 +58,6 @@ def extract_dreamsim_embedding_from_path(img_path: Path) -> NDArray[np.float32]:
     with torch.no_grad():
         raw_embedding = model.embed(input_tensor)
 
-    embedding_tensor = cast(object, raw_embedding.detach().cpu())
+    embedding_tensor = cast("object", raw_embedding.detach().cpu())
     embedding = np.asarray(embedding_tensor, dtype=np.float32).reshape(-1)
     return normalize_embedding(embedding)

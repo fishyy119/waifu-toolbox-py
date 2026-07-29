@@ -1,6 +1,5 @@
 import argparse
 import random
-from typing import Dict, List
 
 from .command import (
     CacheCommand,
@@ -22,8 +21,8 @@ def main():
     subparsers = parser.add_subparsers(title="subcommands", dest="command", required=True)
 
     # 注册所有一级命令
-    commands: List[CommandType] = [RepoCommand, CacheCommand, ClassifyCommand, SortCommand, ConvertCommand]
-    command_map: Dict[str, CommandType] = {}
+    commands: list[CommandType] = [RepoCommand, CacheCommand, ClassifyCommand, SortCommand, ConvertCommand]
+    command_map: dict[str, CommandType] = {}
     for cmd_cls in commands:
         sub_parser = subparsers.add_parser(cmd_cls.name, help=cmd_cls.help)
         cmd_cls.add_arguments(sub_parser)

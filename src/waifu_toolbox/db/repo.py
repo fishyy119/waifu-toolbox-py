@@ -4,16 +4,18 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Set
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.feature import PathsWithHashes, get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 from ..utils.progress import ProgressFactory, tqdm_factory
 from .cache import CacheManager, CacheName
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class FeatureStatus(NamedTuple):
@@ -23,8 +25,8 @@ class FeatureStatus(NamedTuple):
 
 
 class ScanResult(NamedTuple):
-    paths: List[Path]
-    labels: List[str]
+    paths: list[Path]
+    labels: list[str]
 
 
 class _ImageEntry(NamedTuple):
@@ -50,9 +52,9 @@ class ImageRepo:
         self._cache = CacheManager(conn)
         self.ccip_features: NDArray[np.float32] | None = None
         self.dreamsim_features: NDArray[np.float32] | None = None
-        self.hashes: List[bytes] = []
-        self.labels: List[str] = []
-        self.relative_paths: List[str] = []
+        self.hashes: list[bytes] = []
+        self.labels: list[str] = []
+        self.relative_paths: list[str] = []
 
         self._repo_name: str | None = None
         self._repo_id: int | None = None
@@ -190,7 +192,7 @@ class ImageRepo:
                         self.ccip_features[i].tobytes() if self.ccip_features is not None else None,
                         self.dreamsim_features[i].tobytes() if self.dreamsim_features is not None else None,
                     )
-                    for i, (h, label) in enumerate(zip(self.hashes, self.labels))
+                    for i, (h, label) in enumerate(zip(self.hashes, self.labels, strict=False))
                 ],
             )
 
@@ -202,12 +204,12 @@ class ImageRepo:
         assert self.ccip_features is not None
         assert len(self.ccip_features) == len(self.labels) == len(self.hashes)
 
-        label_to_indices: Dict[str, List[int]] = defaultdict(list)
+        label_to_indices: dict[str, list[int]] = defaultdict(list)
         for idx, label in enumerate(self.labels):
             label_to_indices[label].append(idx)
 
-        selected_indices: List[int] = []
-        for label, indices in label_to_indices.items():
+        selected_indices: list[int] = []
+        for _label, indices in label_to_indices.items():
             if len(indices) <= max_num:
                 selected_indices.extend(indices)
             else:
@@ -229,8 +231,8 @@ class ImageRepo:
     @staticmethod
     def scan_imgs_with_label(repo_path: Path) -> ScanResult:
         exts = IMG_EXTS
-        image_paths: List[Path] = []
-        labels: List[str] = []
+        image_paths: list[Path] = []
+        labels: list[str] = []
 
         for category_dir in repo_path.iterdir():
             if not category_dir.is_dir():
@@ -251,7 +253,7 @@ class ImageRepo:
         assert self._repo_id is not None
 
         image_paths, _ = self.scan_imgs_with_label(self.repo_path)
-        existing_hashes: Set[bytes] = set()
+        existing_hashes: set[bytes] = set()
 
         factory = make_progress or tqdm_factory
         bar = factory(len(image_paths), "计算现有文件哈希")
@@ -315,15 +317,15 @@ class ImageRepo:
 
         image_paths, labels = self.scan_imgs_with_label(self.repo_path)
 
-        hash_to_index: Dict[bytes, int] = {h: i for i, h in enumerate(self.hashes)}
-        hash_to_path: Dict[bytes, Path] = {}
+        hash_to_index: dict[bytes, int] = {h: i for i, h in enumerate(self.hashes)}
+        hash_to_path: dict[bytes, Path] = {}
         updated_labels = 0
-        new_entries: List[_ImageEntry] = []
-        existing_updates: List[_ImageUpdate] = []
+        new_entries: list[_ImageEntry] = []
+        existing_updates: list[_ImageUpdate] = []
 
         factory = make_progress or tqdm_factory
         bar = factory(len(image_paths), "扫描并同步索引")
-        for p, label in zip(image_paths, labels):
+        for p, label in zip(image_paths, labels, strict=False):
             h = compute_file_hash(p)
             hash_to_path[h] = p
             rel = str(p.relative_to(self.repo_path))
@@ -362,7 +364,7 @@ class ImageRepo:
     @dataclass
     class DeduplicateResult:
         deleted: int
-        label_mismatches: List[str]
+        label_mismatches: list[str]
 
     def deduplicate(self, name: str, *, make_progress: ProgressFactory | None = None) -> "ImageRepo.DeduplicateResult":
         """基于文件hash去重仓库中的重复图片，返回去重结果"""
@@ -376,16 +378,16 @@ class ImageRepo:
             label: str
             hit: int = 0
 
-        hash_index: Dict[bytes, HashIndexInfo] = {
+        hash_index: dict[bytes, HashIndexInfo] = {
             h: HashIndexInfo(label=self.labels[i]) for i, h in enumerate(self.hashes)
         }
 
         deleted = 0
-        label_mismatches: List[str] = []
+        label_mismatches: list[str] = []
 
         factory = make_progress or tqdm_factory
         bar = factory(len(image_paths), "扫描去重")
-        for p, label in zip(image_paths, labels):
+        for p, label in zip(image_paths, labels, strict=False):
             h = compute_file_hash(p)
 
             if h in hash_index:
@@ -408,7 +410,7 @@ class ImageRepo:
     @dataclass
     class ScanInitResult:
         ok: bool
-        label_mismatches: List[str]
+        label_mismatches: list[str]
 
     def scan_init(
         self,
@@ -425,15 +427,15 @@ class ImageRepo:
         if len(image_paths) == 0:
             return self.ScanInitResult(ok=False, label_mismatches=[])
 
-        hashes: List[bytes] = []
-        valid_paths: List[Path] = []
-        valid_labels: List[str] = []
-        seen: Dict[bytes, _SeenImage] = {}
-        label_mismatches: List[str] = []
+        hashes: list[bytes] = []
+        valid_paths: list[Path] = []
+        valid_labels: list[str] = []
+        seen: dict[bytes, _SeenImage] = {}
+        label_mismatches: list[str] = []
 
         factory = make_progress or tqdm_factory
         bar = factory(len(image_paths), "计算文件哈希")
-        for p, label in zip(image_paths, labels):
+        for p, label in zip(image_paths, labels, strict=False):
             h = compute_file_hash(p)
             if h not in seen:
                 seen[h] = _SeenImage(p, label)
@@ -479,7 +481,7 @@ class ImageRepo:
         return self.ScanInitResult(ok=True, label_mismatches=label_mismatches)
 
     def _extract_missing_feature(
-        self, feature_name: CacheName, hash_to_path: Dict[bytes, Path], *, make_progress: ProgressFactory | None = None
+        self, feature_name: CacheName, hash_to_path: dict[bytes, Path], *, make_progress: ProgressFactory | None = None
     ) -> None:
         """为仓库中缺失指定特征的图片提取并更新特征"""
         assert self._repo_id is not None
@@ -494,8 +496,8 @@ class ImageRepo:
         if not missing:
             return
 
-        missing_hashes: List[bytes] = []
-        missing_paths: List[Path] = []
+        missing_hashes: list[bytes] = []
+        missing_paths: list[Path] = []
         for (h,) in missing:
             if h in hash_to_path:
                 missing_hashes.append(h)
@@ -515,5 +517,5 @@ class ImageRepo:
             self._conn.executemany(
                 f"""UPDATE images SET {column} = ?
                     WHERE repo_id = ? AND hash = ?""",
-                [(f.tobytes(), self._repo_id, h) for f, h in zip(features, missing_hashes)],
+                [(f.tobytes(), self._repo_id, h) for f, h in zip(features, missing_hashes, strict=False)],
             )

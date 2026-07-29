@@ -1,7 +1,6 @@
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 
 from PIL import Image
 
@@ -13,7 +12,7 @@ from ..utils.result import Result
 class ConvertResult:
     converted: int
     failed: int
-    errors: List[str] = field(default_factory=lambda: [])
+    errors: list[str] = field(default_factory=lambda: [])
 
 
 def convert_single(source_path: Path, replace: bool) -> str | None:
@@ -22,10 +21,7 @@ def convert_single(source_path: Path, replace: bool) -> str | None:
     try:
         with Image.open(source_path) as img:
             if img.mode == "P":
-                if "transparency" in img.info:
-                    img = img.convert("RGBA")
-                else:
-                    img = img.convert("RGB")
+                img = img.convert("RGBA") if "transparency" in img.info else img.convert("RGB")
             elif img.mode not in ("RGB", "RGBA"):
                 img = img.convert("RGB")
 
@@ -39,7 +35,7 @@ def convert_single(source_path: Path, replace: bool) -> str | None:
 
 
 def convert_images_parallel(
-    source_files: List[Path],
+    source_files: list[Path],
     replace: bool = False,
     *,
     make_progress: ProgressFactory | None = None,
@@ -48,10 +44,10 @@ def convert_images_parallel(
     bar = factory(len(source_files), "Converting images")
     converted = 0
     failed = 0
-    errors: List[str] = []
+    errors: list[str] = []
 
     with ThreadPoolExecutor() as executor:
-        futures: List[Future[str | None]] = [executor.submit(convert_single, p, replace) for p in source_files]
+        futures: list[Future[str | None]] = [executor.submit(convert_single, p, replace) for p in source_files]
 
         for future in as_completed(futures):
             error = future.result()
@@ -66,7 +62,7 @@ def convert_images_parallel(
     return ConvertResult(converted=converted, failed=failed, errors=errors)
 
 
-def collect_files(input_path: Path, ext: str) -> List[Path]:
+def collect_files(input_path: Path, ext: str) -> list[Path]:
     if not input_path.exists():
         raise FileNotFoundError(f"{input_path} does not exist")
 

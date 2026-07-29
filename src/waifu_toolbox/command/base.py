@@ -1,5 +1,4 @@
 import argparse
-from typing import Type, TypeAlias
 
 
 # -----------------------------
@@ -20,4 +19,4 @@ class Command:
         pass
 
 
-CommandType: TypeAlias = Type[Command]
+type CommandType = type[Command]

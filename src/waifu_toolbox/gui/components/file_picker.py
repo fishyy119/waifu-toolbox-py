@@ -1,7 +1,8 @@
 import tkinter as tk
+from collections.abc import Sequence
 from pathlib import Path
 from tkinter import filedialog
-from typing import Literal, Sequence, overload
+from typing import Literal, overload
 
 from nicegui import run, ui
 

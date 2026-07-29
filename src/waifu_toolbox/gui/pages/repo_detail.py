@@ -316,92 +316,89 @@ def _flatten_button(ctx: GuiContext, repo_name: str) -> None:
 
 
 def _rename_button(ctx: GuiContext, repo_name: str) -> None:
-    with ui.dialog() as dialog:
-        with ui.card().classes("w-80"):
-            ui.label("重命名仓库").classes("text-sm font-semibold")
-            new_name_input = ui.input(label="新名称", value=repo_name).classes("w-full")
-            with ui.row().classes("justify-end gap-2 mt-2"):
-                ui.button("取消", on_click=dialog.close).props("flat")
+    with ui.dialog() as dialog, ui.card().classes("w-80"):
+        ui.label("重命名仓库").classes("text-sm font-semibold")
+        new_name_input = ui.input(label="新名称", value=repo_name).classes("w-full")
+        with ui.row().classes("justify-end gap-2 mt-2"):
+            ui.button("取消", on_click=dialog.close).props("flat")
 
-                async def do_rename():
-                    new_name = new_name_input.value
-                    if not new_name or new_name == repo_name:
-                        return
-                    result = await ctx.task_manager.run_result(
-                        f"重命名仓库: {repo_name}",
-                        rename_repo,
-                        repo_name,
-                        new_name,
-                    )
-                    if result.ok:
-                        ui.notify(result.message, type="positive")
-                        dialog.close()
-                        ui.navigate.to(f"/repo/{new_name}")
-                    else:
-                        ui.notify(result.message, type="negative")
+            async def do_rename():
+                new_name = new_name_input.value
+                if not new_name or new_name == repo_name:
+                    return
+                result = await ctx.task_manager.run_result(
+                    f"重命名仓库: {repo_name}",
+                    rename_repo,
+                    repo_name,
+                    new_name,
+                )
+                if result.ok:
+                    ui.notify(result.message, type="positive")
+                    dialog.close()
+                    ui.navigate.to(f"/repo/{new_name}")
+                else:
+                    ui.notify(result.message, type="negative")
 
-                ui.button("确认", on_click=do_rename)
+            ui.button("确认", on_click=do_rename)
 
     ui.button("重命名", icon="edit", on_click=dialog.open).props("flat")
 
 
 def _change_path_button(ctx: GuiContext, repo_name: str) -> None:
-    with ui.dialog() as dialog:
-        with ui.card().classes("w-96"):
-            ui.label("修改仓库路径").classes("text-sm font-semibold")
-            path_input = folder_picker(label="新路径")
-            with ui.row().classes("justify-end gap-2 mt-2"):
-                ui.button("取消", on_click=dialog.close).props("flat")
+    with ui.dialog() as dialog, ui.card().classes("w-96"):
+        ui.label("修改仓库路径").classes("text-sm font-semibold")
+        path_input = folder_picker(label="新路径")
+        with ui.row().classes("justify-end gap-2 mt-2"):
+            ui.button("取消", on_click=dialog.close).props("flat")
 
-                async def do_change():
-                    new_path = path_input.value
-                    if not new_path:
-                        return
-                    result = await ctx.task_manager.run_result(
-                        f"修改路径: {repo_name}",
-                        change_repo_path,
-                        repo_name,
-                        Path(new_path),
-                    )
-                    if result.ok:
-                        ui.notify(result.message, type="positive")
-                        dialog.close()
-                        ui.navigate.to(f"/repo/{repo_name}")
-                    else:
-                        ui.notify(result.message, type="negative")
+            async def do_change():
+                new_path = path_input.value
+                if not new_path:
+                    return
+                result = await ctx.task_manager.run_result(
+                    f"修改路径: {repo_name}",
+                    change_repo_path,
+                    repo_name,
+                    Path(new_path),
+                )
+                if result.ok:
+                    ui.notify(result.message, type="positive")
+                    dialog.close()
+                    ui.navigate.to(f"/repo/{repo_name}")
+                else:
+                    ui.notify(result.message, type="negative")
 
-                ui.button("确认", on_click=do_change)
+            ui.button("确认", on_click=do_change)
 
     ui.button("修改路径", icon="folder_open", on_click=dialog.open).props("flat")
 
 
 def _delete_button(ctx: GuiContext, repo_name: str) -> None:
-    with ui.dialog() as dialog:
-        with ui.card().classes("w-96"):
-            ui.label("删除仓库").classes("text-sm font-semibold text-destructive-fg")
-            ui.label("仅删除数据库中的仓库索引和关联图片记录，不会删除磁盘上的原始文件。").classes("text-sm text-muted")
-            confirm_input = ui.input(label=f"输入仓库名称以确认：{repo_name}").classes("w-full")
+    with ui.dialog() as dialog, ui.card().classes("w-96"):
+        ui.label("删除仓库").classes("text-sm font-semibold text-destructive-fg")
+        ui.label("仅删除数据库中的仓库索引和关联图片记录，不会删除磁盘上的原始文件。").classes("text-sm text-muted")
+        confirm_input = ui.input(label=f"输入仓库名称以确认：{repo_name}").classes("w-full")
 
-            with ui.row().classes("justify-end gap-2 mt-2"):
-                ui.button("取消", on_click=dialog.close).props("flat")
+        with ui.row().classes("justify-end gap-2 mt-2"):
+            ui.button("取消", on_click=dialog.close).props("flat")
 
-                async def do_delete():
-                    if confirm_input.value != repo_name:
-                        ui.notify("请输入完整仓库名称以确认删除", type="negative")
-                        return
-                    result = await ctx.task_manager.run_result(
-                        f"删除仓库: {repo_name}",
-                        delete_repo,
-                        repo_name,
-                    )
-                    if result.ok:
-                        ui.notify(result.message, type="positive")
-                        dialog.close()
-                        ui.navigate.to("/")
-                    else:
-                        ui.notify(result.message, type="negative")
+            async def do_delete():
+                if confirm_input.value != repo_name:
+                    ui.notify("请输入完整仓库名称以确认删除", type="negative")
+                    return
+                result = await ctx.task_manager.run_result(
+                    f"删除仓库: {repo_name}",
+                    delete_repo,
+                    repo_name,
+                )
+                if result.ok:
+                    ui.notify(result.message, type="positive")
+                    dialog.close()
+                    ui.navigate.to("/")
+                else:
+                    ui.notify(result.message, type="negative")
 
-                ui.button("删除仓库", icon="delete", on_click=do_delete).props("color=negative")
+            ui.button("删除仓库", icon="delete", on_click=do_delete).props("color=negative")
 
     def open_dialog() -> None:
         confirm_input.value = ""

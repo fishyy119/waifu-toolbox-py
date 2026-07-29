@@ -3,7 +3,6 @@ import shutil
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 import numpy as np
 
@@ -39,7 +38,7 @@ class ImageInfo:
 @dataclass
 class RepoImages:
     repo_path: Path
-    images: List[ImageInfo]
+    images: list[ImageInfo]
 
 
 def get_repo_images(repo_name: str) -> RepoImages | None:
@@ -49,7 +48,7 @@ def get_repo_images(repo_name: str) -> RepoImages | None:
         if not db.load(repo_name):
             return None
         assert db.repo_path is not None
-        images = [ImageInfo(relative_path=rp, label=lb) for rp, lb in zip(db.relative_paths, db.labels)]
+        images = [ImageInfo(relative_path=rp, label=lb) for rp, lb in zip(db.relative_paths, db.labels, strict=False)]
         return RepoImages(repo_path=db.repo_path, images=images)
 
 
@@ -76,7 +75,7 @@ def create_repo(
         db.save()
         message = f"仓库 '{repo_name}' 创建成功"
         if scan.label_mismatches:
-            message += f"\n\n标签冲突（同 hash 不同标签，仅保留首次出现）:\n"
+            message += "\n\n标签冲突（同 hash 不同标签，仅保留首次出现）:\n"
             message += "\n".join(f"  {m}" for m in scan.label_mismatches)
         return Result(True, message)
 
@@ -98,15 +97,14 @@ def rename_repo(repo_name: str, new_name: str) -> Result[None]:
 
 
 def delete_repo(repo_name: str) -> Result[None]:
-    with closing(open_connection()) as conn:
-        with conn:
-            result = conn.execute(
-                """DELETE FROM repos WHERE name = ?""",
-                (repo_name,),
-            )
-            if result.rowcount > 0:
-                return Result(True, f"已删除仓库 '{repo_name}' 的索引（未删除磁盘文件）")
-            return Result(False, f"仓库 '{repo_name}' 不存在")
+    with closing(open_connection()) as conn, conn:
+        result = conn.execute(
+            """DELETE FROM repos WHERE name = ?""",
+            (repo_name,),
+        )
+        if result.rowcount > 0:
+            return Result(True, f"已删除仓库 '{repo_name}' 的索引（未删除磁盘文件）")
+        return Result(False, f"仓库 '{repo_name}' 不存在")
 
 
 @dataclass
@@ -115,22 +113,21 @@ class RepoSummary:
     path: str
 
 
-def list_repos() -> List[RepoSummary]:
+def list_repos() -> list[RepoSummary]:
     with closing(open_connection()) as conn:
         rows = conn.execute("""SELECT name, path FROM repos ORDER BY name""").fetchall()
         return [RepoSummary(name=name, path=path) for name, path in rows]
 
 
 def change_repo_path(repo_name: str, new_path: Path) -> Result[None]:
-    with closing(open_connection()) as conn:
-        with conn:
-            result = conn.execute(
-                """UPDATE repos SET path = ? WHERE name = ?""",
-                (str(new_path), repo_name),
-            )
-            if result.rowcount > 0:
-                return Result(True, "路径已更新")
-            return Result(False, f"仓库 '{repo_name}' 不存在")
+    with closing(open_connection()) as conn, conn:
+        result = conn.execute(
+            """UPDATE repos SET path = ? WHERE name = ?""",
+            (str(new_path), repo_name),
+        )
+        if result.rowcount > 0:
+            return Result(True, "路径已更新")
+        return Result(False, f"仓库 '{repo_name}' 不存在")
 
 
 def deduplicate_repo(
@@ -177,10 +174,7 @@ def purge_repo(repo_name: str, *, make_progress: ProgressFactory | None = None) 
         if not db.load(repo_name):
             return Result(False, f"仓库 '{repo_name}' 不存在")
         removed = db.purge(repo_name, make_progress=make_progress)
-        if removed > 0:
-            message = f"清除了 {removed} 条失效记录"
-        else:
-            message = "没有需要清除的记录"
+        message = f"清除了 {removed} 条失效记录" if removed > 0 else "没有需要清除的记录"
         return Result(True, message, removed)
 
 
@@ -228,7 +222,7 @@ def _row_to_repo_info(row: tuple[str, str, int, int, int, int]) -> RepoInfo:
     )
 
 
-def list_repo_infos() -> List[RepoInfo]:
+def list_repo_infos() -> list[RepoInfo]:
     with closing(open_connection()) as conn:
         sql, params = _repo_infos_query()
         rows = conn.execute(sql, params).fetchall()
@@ -301,7 +295,7 @@ class SearchResult:
 
 def search_similar(
     repo_name: str, query_image: Path, top_k: int = 10, skip_update: bool = False
-) -> Result[List[SearchResult]]:
+) -> Result[list[SearchResult]]:
     from ..utils.dreamsim import extract_dreamsim_embedding_from_path
 
     with closing(open_connection()) as conn:
@@ -322,7 +316,7 @@ def search_similar(
 
         if db.repo_path is None:
             return Result(False, f"仓库 '{repo_name}' 路径不可用")
-        results: List[SearchResult] = []
+        results: list[SearchResult] = []
         for rank, idx in enumerate(top_indices, 1):
             idx: int
             rel_path = db.relative_paths[idx]

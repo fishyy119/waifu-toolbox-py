@@ -1,6 +1,5 @@
 import hashlib
 from pathlib import Path
-from typing import List
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,7 +17,7 @@ def farthest_point_sampling(
     dist_mat: NDArray[np.float32],
     k: int,
     start: int | None = None,
-) -> List[int]:
+) -> list[int]:
     """
     最远点采样（Farthest Point Sampling, FPS）
 

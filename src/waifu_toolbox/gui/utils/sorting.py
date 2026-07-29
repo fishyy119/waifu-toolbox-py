@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 
 from icu import (
     Collator,
@@ -10,7 +10,7 @@ from icu import (
 )
 
 
-@lru_cache(maxsize=None)
+@cache
 def _get_collator(locale_name: str | None = None) -> Collator:
     locale = Locale(locale_name) if locale_name is not None else Locale.getDefault()
     collator = Collator.createInstance(locale)

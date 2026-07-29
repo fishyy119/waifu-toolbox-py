@@ -1,4 +1,5 @@
-from typing import Callable, Literal, Tuple
+from collections.abc import Callable
+from typing import Literal
 
 from PIL.Image import Image as ImageType
 from torch import Tensor
@@ -29,4 +30,4 @@ def dreamsim(
     normalize_embeds: bool = ...,
     dreamsim_type: DreamSimType = ...,
     use_patch_model: bool = ...,
-) -> Tuple[PerceptualModel, Callable[[ImageType], Tensor]]: ...
+) -> tuple[PerceptualModel, Callable[[ImageType], Tensor]]: ...

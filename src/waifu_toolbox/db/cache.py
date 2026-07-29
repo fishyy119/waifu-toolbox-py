@@ -1,11 +1,11 @@
 import sqlite3
-from typing import Dict, Literal, TypeAlias
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
-CacheName: TypeAlias = Literal["ccip", "dreamsim"]
-FeatureType: TypeAlias = NDArray[np.float32]
+type CacheName = Literal["ccip", "dreamsim"]
+type FeatureType = NDArray[np.float32]
 
 
 class CacheManager:
@@ -17,7 +17,7 @@ class CacheManager:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
-        self._dirty: Dict[CacheName, Dict[bytes, FeatureType]] = {}
+        self._dirty: dict[CacheName, dict[bytes, FeatureType]] = {}
 
     def get(self, feature_name: CacheName, hash_key: bytes) -> FeatureType | None:
         """按 hash 查询特征，如果命中返回特征，否则返回 None"""

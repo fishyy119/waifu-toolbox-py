@@ -1,11 +1,11 @@
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Literal
+from typing import Literal
 
-from .connection import open_connection
 from ..utils.image import IMG_EXTS
 from ..utils.result import Result
+from .connection import open_connection
 from .repo import ImageRepo
 
 
@@ -15,7 +15,7 @@ class FileStat:
     size: int = 0
 
     @classmethod
-    def from_files(cls, files: List[Path]) -> "FileStat":
+    def from_files(cls, files: list[Path]) -> "FileStat":
         return cls(count=len(files), size=sum(f.stat().st_size for f in files))
 
 
@@ -23,7 +23,7 @@ def analyze_repo(
     repo_name: str,
     type: Literal["extension", "category"] = "extension",
     target: str = "",
-) -> Result[Dict[str, FileStat]]:
+) -> Result[dict[str, FileStat]]:
     """返回 {键: FileStat} 映射。键为扩展名或类别名。"""
     with closing(open_connection()) as conn:
         db = ImageRepo(conn)
@@ -37,7 +37,7 @@ def analyze_repo(
         if not (analyze_root.exists() and analyze_root.is_dir()):
             return Result(False, f"目录不存在: {analyze_root}")
 
-        stats: Dict[str, FileStat] = {}
+        stats: dict[str, FileStat] = {}
         if type == "extension":
             for ext in IMG_EXTS:
                 ext_files = list(analyze_root.rglob(ext))

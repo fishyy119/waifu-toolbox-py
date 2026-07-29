@@ -37,7 +37,7 @@ def test_has_uniform_prefix_checks_against_parent_directory_name(tmp_path: Path)
         unit / "alice_0000.png",
         unit / "alice_0001.png",
     ]
-    mixed = matching + [unit / "other_0002.png"]
+    mixed = [*matching, unit / "other_0002.png"]
 
     assert has_uniform_prefix(matching) is True
     assert has_uniform_prefix(mixed) is False

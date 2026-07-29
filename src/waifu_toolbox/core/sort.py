@@ -3,7 +3,7 @@
 import warnings
 from contextlib import closing
 from pathlib import Path
-from typing import List, cast
+from typing import cast
 
 import numpy as np
 import umap
@@ -23,7 +23,7 @@ def umap_order(
     D: NDArray[np.float32],
     n_neighbors: int = 10,
     min_dist: float = 0.0,
-) -> List[int]:
+) -> list[int]:
     warnings.filterwarnings(
         "ignore",
         message="using precomputed metric; inverse_transform will be unavailable",
@@ -40,12 +40,12 @@ def umap_order(
         min_dist=min_dist,
         random_state=42,  # 固定种子会禁用并行
     )
-    embedding = cast(np.ndarray, reducer.fit_transform(D)).reshape(-1)
+    embedding = cast("np.ndarray", reducer.fit_transform(D)).reshape(-1)
     order = np.argsort(embedding)
     return order.tolist()
 
 
-def get_sort_units(root: Path) -> List[Path]:
+def get_sort_units(root: Path) -> list[Path]:
     """
     递归获取所有排序单元目录。
     排序单元定义：目录下有图片（直接所属，不嵌套子目录的图片）
@@ -56,7 +56,7 @@ def get_sort_units(root: Path) -> List[Path]:
     Returns:
         sort_units: 目录列表，每个目录包含至少一张图片
     """
-    sort_units: List[Path] = []
+    sort_units: list[Path] = []
 
     for path in root.rglob("*"):
         if not path.is_dir():
@@ -74,7 +74,7 @@ def get_sort_units(root: Path) -> List[Path]:
     return sort_units
 
 
-def has_uniform_prefix(files: List[Path]) -> bool:
+def has_uniform_prefix(files: list[Path]) -> bool:
     """
     判断文件列表是否都具有相同前缀
     前缀需要与父目录的名字相同
@@ -110,7 +110,7 @@ def sort_images_by_perceptual_similarity(
         exts = IMG_EXTS
         outer = factory(len(sort_units), "排序图片")
         for unit in sort_units:
-            image_paths: List[Path] = []
+            image_paths: list[Path] = []
             for ext in exts:
                 image_paths.extend(unit.glob(ext))
             image_paths.sort()  # 尽量让输入序列稳定
@@ -135,14 +135,11 @@ def sort_images_by_perceptual_similarity(
             embeddings = np.stack(features, axis=0)
             distances = compute_dreamsim_distance_matrix(embeddings)
 
-            if len(image_paths) < 200:
-                n_neighbors = min(10, max(2, len(image_paths) // 2))
-            else:
-                n_neighbors = 20
+            n_neighbors = min(10, max(2, len(image_paths) // 2)) if len(image_paths) < 200 else 20
             order = umap_order(distances, n_neighbors=n_neighbors)
 
             # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
-            temp_paths: List[Path] = []
+            temp_paths: list[Path] = []
             for idx in order:
                 old_path = image_paths[idx]
                 temp_path = old_path.with_name(f"__temp_{old_path.name}")

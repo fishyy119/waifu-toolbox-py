@@ -1,7 +1,7 @@
 import random
 import warnings
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import NamedTuple
 
 from PIL import Image
 from PIL.Image import Image as ImageType
@@ -11,11 +11,11 @@ IMG_EXTS = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp")
 
 
 class LoadedImages(NamedTuple):
-    images: List[ImageType]
-    paths: List[Path]
+    images: list[ImageType]
+    paths: list[Path]
 
 
-def load_image(path: Path, max_size: int | Tuple[int, int] | None = 256, mode: str = "RGBA") -> ImageType:
+def load_image(path: Path, max_size: int | tuple[int, int] | None = 256, mode: str = "RGBA") -> ImageType:
     """读取单张图片"""
     with Image.open(path) as src:
         img = src.convert(mode)
@@ -45,11 +45,11 @@ def load_images_from_folder(
         file_paths: 对应路径列表
     """
     exts = IMG_EXTS
-    all_groups: List[List[Path]] = []
+    all_groups: list[list[Path]] = []
 
     # 收集所有子目录和根目录的图片
     # 根目录视为特殊子目录
-    root_files: List[Path] = []
+    root_files: list[Path] = []
     for ext in exts:
         root_files.extend(folder.glob(ext))
     if root_files:
@@ -59,7 +59,7 @@ def load_images_from_folder(
     for subdir in folder.iterdir():
         if not subdir.is_dir():
             continue
-        sub_files: List[Path] = []
+        sub_files: list[Path] = []
         for ext in exts:
             sub_files.extend(subdir.rglob(ext))
         if sub_files:
@@ -75,7 +75,7 @@ def load_images_from_folder(
         total_sample_num = total_files
 
     # 分配每个子组采样数（按比例）
-    sampled_files: List[Path] = []
+    sampled_files: list[Path] = []
     for group in all_groups:
         group_sample_num = int(len(group) / total_files * total_sample_num)
         group_sample_num = min(group_sample_num, len(group))
@@ -83,7 +83,7 @@ def load_images_from_folder(
             sampled_files.extend(random.sample(group, group_sample_num))
 
     # 读取图片
-    images: List[ImageType] = []
+    images: list[ImageType] = []
     if tqdm_title:
         from tqdm import tqdm
 

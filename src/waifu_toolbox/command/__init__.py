@@ -6,9 +6,9 @@ from .repo import RepoCommand
 from .sort import SortCommand
 
 __all__ = [
-    "CommandType",
     "CacheCommand",
     "ClassifyCommand",
+    "CommandType",
     "ConvertCommand",
     "RepoCommand",
     "SortCommand",
