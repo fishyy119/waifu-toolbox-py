@@ -2,7 +2,7 @@ from pathlib import Path
 
 from nicegui import PageArguments, ui
 
-from ...db.operations import create_repo, list_repo_infos
+from ...db.operations import check_name, create_repo, list_repo_infos
 from ..components.badges import badge, feature_badge
 from ..components.file_picker import folder_picker
 from ..context import GuiContext
@@ -39,7 +39,6 @@ def render(ctx: GuiContext, page_args: PageArguments) -> None:
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("仓库管理").classes("text-2xl font-semibold tracking-tight")
             ui.button("创建仓库", icon="add", on_click=lambda: create_dialog.open())
-            # TODO: 创建时提取特征，弹窗不会立刻关闭
 
         with ui.column().classes("w-full gap-3"):
             render_repos()
@@ -56,17 +55,20 @@ def render(ctx: GuiContext, page_args: PageArguments) -> None:
         with ui.row().classes("justify-end gap-2 mt-2"):
             ui.button("取消", on_click=create_dialog.close).props("flat")
 
-            async def do_create():
+            def do_create() -> None:
                 name = name_input.value
                 path = path_input.value
                 if not name:
                     ui.notify("请输入仓库名称", type="negative")
                     return
-                if not path or not Path(path).exists():
+                if error := check_name(name):
+                    ui.notify(error.message, type="negative")
+                    return
+                if not path or not Path(path).is_dir():
                     ui.notify("请输入有效的文件夹路径", type="negative")
                     return
 
-                result = await ctx.task_manager.run_result(
+                ctx.task_manager.submit(
                     f"创建仓库: {name}",
                     create_repo,
                     name,
@@ -74,11 +76,7 @@ def render(ctx: GuiContext, page_args: PageArguments) -> None:
                     extract_ccip=bool(ccip_check.value),
                     extract_dreamsim=bool(dreamsim_check.value),
                 )
-                if result.ok:
-                    ui.notify(result.message, type="positive")
-                    create_dialog.close()
-                    render_repos.refresh()
-                else:
-                    ui.notify(result.message, type="negative")
+                create_dialog.close()
+                ui.notify("创建任务已提交")
 
             ui.button("创建", on_click=do_create)
