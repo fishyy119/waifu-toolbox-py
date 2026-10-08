@@ -1,8 +1,8 @@
 import shutil
 from pathlib import Path
-from sqlite3 import Connection
 
 import pytest
+from sqlalchemy.engine import Connection
 
 from tests.helpers import create_image
 from waifu_toolbox.db.repo import ImageRepo
@@ -74,7 +74,8 @@ def test_scan_init_save_and_load_round_trip(tmp_path: Path, db_conn: Connection)
     assert loaded.repo_path == repo_root
 
     actual = {
-        (label, Path(relative_path).as_posix()) for label, relative_path in zip(loaded.labels, loaded.relative_paths)
+        (label, Path(relative_path).as_posix())
+        for label, relative_path in zip(loaded.labels, loaded.relative_paths, strict=True)
     }
     assert actual == {
         ("alice", "alice/one.png"),

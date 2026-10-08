@@ -1,18 +1,21 @@
 # pyright: standard
 
-import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
+from sqlalchemy import bindparam, delete, func, literal_column, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import Connection
 
 from ..utils.common import compute_file_hash, farthest_point_sampling
 from ..utils.feature import PathsWithHashes, get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 from ..utils.progress import ProgressFactory, tqdm_factory
 from .cache import CacheManager, CacheName
+from .schema import images, repos
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -47,7 +50,7 @@ class _SeenImage(NamedTuple):
 
 
 class ImageRepo:
-    def __init__(self, conn: sqlite3.Connection, repo_name: str | None = None):
+    def __init__(self, conn: Connection, repo_name: str | None = None):
         self._conn = conn
         self._cache = CacheManager(conn)
         self.ccip_features: NDArray[np.float32] | None = None
@@ -76,22 +79,18 @@ class ImageRepo:
         self._repo_name = name
 
     def _resolve_repo_id(self) -> int:
-        row = self._conn.execute(
-            """SELECT repo_id FROM repos WHERE name = ?""",
-            (self._repo_name,),
-        ).fetchone()
-        if row is None:
+        repo_id = self._conn.execute(
+            select(repos.c.repo_id).where(repos.c.name == self._repo_name)
+        ).scalar_one_or_none()
+        if repo_id is None:
             raise ValueError(f"Repository '{self._repo_name}' not found")
-        return row[0]
+        return repo_id
 
     def load(self, repo_name: str) -> bool:
         """加载仓库元数据与 hash/label 索引（不读取特征 BLOB）"""
         self._repo_name = repo_name
 
-        row = self._conn.execute(
-            """SELECT repo_id, path FROM repos WHERE name = ?""",
-            (repo_name,),
-        ).fetchone()
+        row = self._conn.execute(select(repos.c.repo_id, repos.c.path).where(repos.c.name == repo_name)).one_or_none()
         if row is None:
             self.ccip_features = None
             self.dreamsim_features = None
@@ -106,10 +105,10 @@ class ImageRepo:
         self.repo_path = Path(row[1])
 
         rows = self._conn.execute(
-            """SELECT hash, label, relative_path FROM images
-               WHERE repo_id = ? ORDER BY rowid""",
-            (self._repo_id,),
-        ).fetchall()
+            select(images.c.hash, images.c.label, images.c.relative_path)
+            .where(images.c.repo_id == self._repo_id)
+            .order_by(literal_column("rowid"))
+        ).all()
 
         self.hashes = [r[0] for r in rows]
         self.labels = [r[1] for r in rows]
@@ -127,11 +126,10 @@ class ImageRepo:
 
         if ccip:
             rows = self._conn.execute(
-                """SELECT hash, label, relative_path, ccip_feature FROM images
-                   WHERE repo_id = ? AND ccip_feature IS NOT NULL
-                   ORDER BY rowid""",
-                (self._repo_id,),
-            ).fetchall()
+                select(images.c.hash, images.c.label, images.c.relative_path, images.c.ccip_feature)
+                .where(images.c.repo_id == self._repo_id, images.c.ccip_feature.is_not(None))
+                .order_by(literal_column("rowid"))
+            ).all()
             self.hashes = [r[0] for r in rows]
             self.labels = [r[1] for r in rows]
             self.relative_paths = [r[2] or "" for r in rows]
@@ -139,11 +137,10 @@ class ImageRepo:
 
         if dreamsim:
             rows = self._conn.execute(
-                """SELECT hash, label, relative_path, dreamsim_feature FROM images
-                   WHERE repo_id = ? AND dreamsim_feature IS NOT NULL
-                   ORDER BY rowid""",
-                (self._repo_id,),
-            ).fetchall()
+                select(images.c.hash, images.c.label, images.c.relative_path, images.c.dreamsim_feature)
+                .where(images.c.repo_id == self._repo_id, images.c.dreamsim_feature.is_not(None))
+                .order_by(literal_column("rowid"))
+            ).all()
             self.hashes = [r[0] for r in rows]
             self.labels = [r[1] for r in rows]
             self.relative_paths = [r[2] or "" for r in rows]
@@ -153,47 +150,57 @@ class ImageRepo:
         """轻量查询特征覆盖状态"""
         assert self._repo_id is not None
         row = self._conn.execute(
-            """SELECT COUNT(*), COUNT(ccip_feature), COUNT(dreamsim_feature)
-               FROM images WHERE repo_id = ?""",
-            (self._repo_id,),
-        ).fetchone()
+            select(
+                func.count(),
+                func.count(images.c.ccip_feature),
+                func.count(images.c.dreamsim_feature),
+            ).where(images.c.repo_id == self._repo_id)
+        ).one()
         return FeatureStatus(row[0], row[1], row[2])
 
     def save(self) -> None:
         assert self._repo_name is not None, "repo_name 未设置，无法保存"
         assert self.repo_path is not None, "repo_path 未设置，无法保存"
 
-        with self._conn:
-            self._conn.execute(
-                """INSERT INTO repos (name, path) VALUES (?, ?)
-                   ON CONFLICT(name) DO UPDATE SET path = excluded.path""",
-                (self._repo_name, str(self.repo_path)),
-            )
-            repo_id: int = self._conn.execute(
-                """SELECT repo_id FROM repos WHERE name = ?""",
-                (self._repo_name,),
-            ).fetchone()[0]
-            self._repo_id = repo_id
+        repo_insert = sqlite_insert(repos)
+        self._conn.execute(
+            repo_insert.on_conflict_do_update(
+                index_elements=[repos.c.name],
+                set_={"path": repo_insert.excluded.path},
+            ),
+            {"name": self._repo_name, "path": str(self.repo_path)},
+        )
+        repo_id = self._conn.execute(select(repos.c.repo_id).where(repos.c.name == self._repo_name)).scalar_one()
+        self._repo_id = repo_id
 
-            self._conn.executemany(
-                """INSERT INTO images (repo_id, hash, label, relative_path, ccip_feature, dreamsim_feature)
-                   VALUES (?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(repo_id, hash) DO UPDATE SET
-                       label = excluded.label,
-                       relative_path = excluded.relative_path,
-                       ccip_feature = COALESCE(excluded.ccip_feature, images.ccip_feature),
-                       dreamsim_feature = COALESCE(excluded.dreamsim_feature, images.dreamsim_feature)""",
-                [
-                    (
-                        repo_id,
-                        h,
-                        label,
-                        self.relative_paths[i] if self.relative_paths else None,
-                        self.ccip_features[i].tobytes() if self.ccip_features is not None else None,
-                        self.dreamsim_features[i].tobytes() if self.dreamsim_features is not None else None,
-                    )
-                    for i, (h, label) in enumerate(zip(self.hashes, self.labels, strict=False))
-                ],
+        image_rows = [
+            {
+                "repo_id": repo_id,
+                "hash": image_hash,
+                "label": label,
+                "relative_path": self.relative_paths[i] if self.relative_paths else None,
+                "ccip_feature": self.ccip_features[i].tobytes() if self.ccip_features is not None else None,
+                "dreamsim_feature": (
+                    self.dreamsim_features[i].tobytes() if self.dreamsim_features is not None else None
+                ),
+            }
+            for i, (image_hash, label) in enumerate(zip(self.hashes, self.labels, strict=False))
+        ]
+        if image_rows:
+            image_insert = sqlite_insert(images)
+            self._conn.execute(
+                image_insert.on_conflict_do_update(
+                    index_elements=[images.c.repo_id, images.c.hash],
+                    set_={
+                        "label": image_insert.excluded.label,
+                        "relative_path": image_insert.excluded.relative_path,
+                        "ccip_feature": func.coalesce(image_insert.excluded.ccip_feature, images.c.ccip_feature),
+                        "dreamsim_feature": func.coalesce(
+                            image_insert.excluded.dreamsim_feature, images.c.dreamsim_feature
+                        ),
+                    },
+                ),
+                image_rows,
             )
 
     def sample(self, max_num: int) -> None:
@@ -263,37 +270,31 @@ class ImageRepo:
             bar.update(1)
         bar.close()
 
-        with self._conn:
-            before_count = self._conn.execute(
-                """SELECT COUNT(*) FROM images WHERE repo_id = ?""",
-                (self._repo_id,),
-            ).fetchone()[0]
+        before_count = self._conn.execute(
+            select(func.count()).select_from(images).where(images.c.repo_id == self._repo_id)
+        ).scalar_one()
 
-            if not existing_hashes:
-                self._conn.execute(
-                    """DELETE FROM images WHERE repo_id = ?""",
-                    (self._repo_id,),
-                )
-            else:
-                self._conn.execute("""CREATE TEMP TABLE IF NOT EXISTS _existing_hashes
-                       (hash BLOB PRIMARY KEY)""")
-                self._conn.execute("""DELETE FROM _existing_hashes""")
-                self._conn.executemany(
-                    """INSERT OR IGNORE INTO _existing_hashes (hash) VALUES (?)""",
-                    [(h,) for h in existing_hashes],
-                )
-                self._conn.execute(
-                    """DELETE FROM images
-                       WHERE repo_id = ? AND hash NOT IN
-                           (SELECT hash FROM _existing_hashes)""",
-                    (self._repo_id,),
-                )
-                self._conn.execute("""DROP TABLE IF EXISTS _existing_hashes""")
-
-            after_count = self._conn.execute(
-                """SELECT COUNT(*) FROM images WHERE repo_id = ?""",
+        if not existing_hashes:
+            self._conn.execute(delete(images).where(images.c.repo_id == self._repo_id))
+        else:
+            # 临时表仅服务于当前连接上的批量差集删除，直接 SQL 比构造动态 Core Table 更清晰。
+            self._conn.exec_driver_sql("CREATE TEMP TABLE IF NOT EXISTS _existing_hashes (hash BLOB PRIMARY KEY)")
+            self._conn.exec_driver_sql("DELETE FROM _existing_hashes")
+            self._conn.exec_driver_sql(
+                "INSERT OR IGNORE INTO _existing_hashes (hash) VALUES (?)",
+                [(image_hash,) for image_hash in existing_hashes],
+            )
+            self._conn.exec_driver_sql(
+                """DELETE FROM images
+                   WHERE repo_id = ? AND hash NOT IN
+                       (SELECT hash FROM _existing_hashes)""",
                 (self._repo_id,),
-            ).fetchone()[0]
+            )
+            self._conn.exec_driver_sql("DROP TABLE IF EXISTS _existing_hashes")
+
+        after_count = self._conn.execute(
+            select(func.count()).select_from(images).where(images.c.repo_id == self._repo_id)
+        ).scalar_one()
 
         return before_count - after_count
 
@@ -340,19 +341,43 @@ class ImageRepo:
             bar.update(1)
         bar.close()
 
-        with self._conn:
-            if existing_updates:
-                self._conn.executemany(
-                    """UPDATE images SET label = ?, relative_path = ?
-                       WHERE repo_id = ? AND hash = ?""",
-                    [(e.label, e.relative_path, self._repo_id, e.hash) for e in existing_updates],
+        if existing_updates:
+            update_statement = (
+                update(images)
+                .where(
+                    images.c.repo_id == bindparam("target_repo_id"),
+                    images.c.hash == bindparam("target_hash"),
                 )
-            if new_entries:
-                self._conn.executemany(
-                    """INSERT INTO images (repo_id, hash, label, relative_path)
-                       VALUES (?, ?, ?, ?)""",
-                    [(self._repo_id, e.hash, e.label, e.relative_path) for e in new_entries],
+                .values(
+                    label=bindparam("new_label"),
+                    relative_path=bindparam("new_relative_path"),
                 )
+            )
+            self._conn.execute(
+                update_statement,
+                [
+                    {
+                        "new_label": entry.label,
+                        "new_relative_path": entry.relative_path,
+                        "target_repo_id": self._repo_id,
+                        "target_hash": entry.hash,
+                    }
+                    for entry in existing_updates
+                ],
+            )
+        if new_entries:
+            self._conn.execute(
+                images.insert(),
+                [
+                    {
+                        "repo_id": self._repo_id,
+                        "hash": entry.hash,
+                        "label": entry.label,
+                        "relative_path": entry.relative_path,
+                    }
+                    for entry in new_entries
+                ],
+            )
 
         if extract_ccip:
             self._extract_missing_feature("ccip", hash_to_path, make_progress=make_progress)
@@ -485,13 +510,14 @@ class ImageRepo:
     ) -> None:
         """为仓库中缺失指定特征的图片提取并更新特征"""
         assert self._repo_id is not None
-        column = {"ccip": "ccip_feature", "dreamsim": "dreamsim_feature"}[feature_name]
+        feature_column = {
+            "ccip": images.c.ccip_feature,
+            "dreamsim": images.c.dreamsim_feature,
+        }[feature_name]
 
         missing = self._conn.execute(
-            f"""SELECT hash FROM images
-                WHERE repo_id = ? AND {column} IS NULL""",
-            (self._repo_id,),
-        ).fetchall()
+            select(images.c.hash).where(images.c.repo_id == self._repo_id, feature_column.is_(None))
+        ).all()
 
         if not missing:
             return
@@ -513,9 +539,22 @@ class ImageRepo:
             make_progress=make_progress,
         )
 
-        with self._conn:
-            self._conn.executemany(
-                f"""UPDATE images SET {column} = ?
-                    WHERE repo_id = ? AND hash = ?""",
-                [(f.tobytes(), self._repo_id, h) for f, h in zip(features, missing_hashes, strict=False)],
+        update_statement = (
+            update(images)
+            .where(
+                images.c.repo_id == bindparam("target_repo_id"),
+                images.c.hash == bindparam("target_hash"),
             )
+            .values({feature_column: bindparam("feature")})
+        )
+        self._conn.execute(
+            update_statement,
+            [
+                {
+                    "feature": feature.tobytes(),
+                    "target_repo_id": self._repo_id,
+                    "target_hash": image_hash,
+                }
+                for feature, image_hash in zip(features, missing_hashes, strict=False)
+            ],
+        )

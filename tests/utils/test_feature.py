@@ -1,9 +1,9 @@
 from pathlib import Path
-from sqlite3 import Connection
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from sqlalchemy.engine import Connection
 
 from waifu_toolbox.db.cache import CacheManager
 from waifu_toolbox.utils import feature as feature_module

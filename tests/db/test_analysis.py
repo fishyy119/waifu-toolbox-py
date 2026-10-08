@@ -4,6 +4,7 @@ import pytest
 
 from tests.helpers import create_image
 from waifu_toolbox.db.analysis import FileStat, analyze_repo
+from waifu_toolbox.db.connection import Database
 from waifu_toolbox.db.operations import create_repo
 
 pytestmark = pytest.mark.integration
@@ -19,7 +20,7 @@ def test_file_stat_from_files_counts_files_and_size(tmp_path: Path):
     assert stat.size == first.stat().st_size + second.stat().st_size
 
 
-def test_analyze_repo_by_extension_reports_expected_counts(tmp_path: Path, isolated_db: Path):
+def test_analyze_repo_by_extension_reports_expected_counts(tmp_path: Path, database: Database):
     repo_root = tmp_path / "repo"
     create_image(repo_root / "alice" / "one.png")
     create_image(repo_root / "bob" / "two.jpg")
@@ -34,7 +35,7 @@ def test_analyze_repo_by_extension_reports_expected_counts(tmp_path: Path, isola
     assert result.data["*.webp"].count == 0
 
 
-def test_analyze_repo_by_category_reports_expected_counts(tmp_path: Path, isolated_db: Path):
+def test_analyze_repo_by_category_reports_expected_counts(tmp_path: Path, database: Database):
     repo_root = tmp_path / "repo"
     create_image(repo_root / "alice" / "one.png")
     create_image(repo_root / "bob" / "two.png")

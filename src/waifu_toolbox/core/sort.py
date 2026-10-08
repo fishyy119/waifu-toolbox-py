@@ -1,7 +1,6 @@
 # pyright: standard
 
 import warnings
-from contextlib import closing
 from pathlib import Path
 from typing import cast
 
@@ -9,8 +8,8 @@ import numpy as np
 import umap
 from numpy.typing import NDArray
 
+from ..db import connection
 from ..db.cache import CacheManager
-from ..db.connection import open_connection
 from ..utils.common import compute_file_hash
 from ..utils.dreamsim import compute_dreamsim_distance_matrix
 from ..utils.feature import PathsWithHashes, get_image_features_use_cache
@@ -103,7 +102,7 @@ def sort_images_by_perceptual_similarity(
         - 排序单元是每个目录，不递归
         - 如果存在 .nosort 文件，该目录将被忽略
     """
-    with closing(open_connection()) as conn:
+    with connection.database.begin() as conn:
         cache = CacheManager(conn)
         factory = make_progress or tqdm_factory
         sort_units = get_sort_units(images_root)

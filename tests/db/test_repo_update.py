@@ -1,7 +1,7 @@
 from pathlib import Path
-from sqlite3 import Connection
 
 import pytest
+from sqlalchemy.engine import Connection
 
 from tests.helpers import create_image
 from waifu_toolbox.db.repo import ImageRepo

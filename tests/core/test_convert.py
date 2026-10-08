@@ -24,11 +24,12 @@ def test_collect_files_validates_input(tmp_path: Path):
 @pytest.mark.skipif(not WEBP_SUPPORTED, reason="Pillow build does not support WebP")
 def test_convert_single_creates_webp_without_removing_source(tmp_path: Path):
     source = create_image(tmp_path / "sample.bmp")
+    original = source.read_bytes()
 
     error = convert_single(source, replace=False)
 
     assert error is None
-    assert source.exists()
+    assert source.read_bytes() == original
     assert source.with_suffix(".webp").exists()
 
 

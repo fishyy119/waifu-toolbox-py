@@ -3,6 +3,8 @@ database/**/*.pkl
 profile*.txt
 .nicegui
 
+*tmp
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

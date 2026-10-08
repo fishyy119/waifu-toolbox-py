@@ -1,9 +1,9 @@
 import shutil
 from pathlib import Path
-from sqlite3 import Connection
 
 import numpy as np
 import pytest
+from sqlalchemy.engine import Connection
 
 from tests.helpers import create_image
 from waifu_toolbox.db.repo import ImageRepo
@@ -42,41 +42,61 @@ def test_deduplicate_reports_cross_label_mismatches_without_deleting(tmp_path: P
 
     assert result.deleted == 0
     assert len(result.label_mismatches) == 1
-    assert (repo_root / "alice" / "shared.png").exists()
-    assert (repo_root / "bob" / "shared.png").exists()
+    assert original.exists()
+    assert duplicate.exists()
+
+
+def test_deduplicate_deletes_only_same_label_copies(tmp_path: Path, db_conn: Connection):
+    repo_root = tmp_path / "repo"
+    original = create_image(repo_root / "alice" / "one.png")
+    same_label = repo_root / "alice" / "dup.png"
+    shutil.copy2(original, same_label)
+    other_label = repo_root / "bob" / "shared.png"
+    other_label.parent.mkdir(parents=True)
+    shutil.copy2(original, other_label)
+
+    repo = ImageRepo(db_conn)
+    assert repo.scan_init("chars", repo_root).ok is True
+    repo.save()
+
+    result = repo.deduplicate("chars")
+
+    assert result.deleted == 1
+    assert len(result.label_mismatches) == 1
+    assert len(list((repo_root / "alice").glob("*.png"))) == 1
+    assert other_label.exists()
 
 
 def test_load_features_filters_rows_without_requested_feature(tmp_path: Path, db_conn: Connection):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
 
-    with db_conn:
-        db_conn.execute("INSERT INTO repos (name, path) VALUES (?, ?)", ("chars", str(repo_root)))
-        repo_id = db_conn.execute("SELECT repo_id FROM repos WHERE name = ?", ("chars",)).fetchone()[0]
-        db_conn.executemany(
-            """
-            INSERT INTO images (repo_id, hash, label, relative_path, ccip_feature, dreamsim_feature)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    repo_id,
-                    b"hash-a",
-                    "alice",
-                    "alice/one.png",
-                    np.array([1.0, 2.0], dtype=np.float32).tobytes(),
-                    None,
-                ),
-                (
-                    repo_id,
-                    b"hash-b",
-                    "bob",
-                    "bob/two.png",
-                    None,
-                    None,
-                ),
-            ],
-        )
+    db_conn.exec_driver_sql("INSERT INTO repos (name, path) VALUES (?, ?)", ("chars", str(repo_root)))
+    repo_id = db_conn.exec_driver_sql("SELECT repo_id FROM repos WHERE name = ?", ("chars",)).scalar_one()
+    db_conn.exec_driver_sql(
+        """
+        INSERT INTO images (repo_id, hash, label, relative_path, ccip_feature, dreamsim_feature)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                repo_id,
+                b"hash-a",
+                "alice",
+                "alice/one.png",
+                np.array([1.0, 2.0], dtype=np.float32).tobytes(),
+                None,
+            ),
+            (
+                repo_id,
+                b"hash-b",
+                "bob",
+                "bob/two.png",
+                None,
+                None,
+            ),
+        ],
+    )
 
     repo = ImageRepo(db_conn, "chars")
     repo.load_features(ccip=True)

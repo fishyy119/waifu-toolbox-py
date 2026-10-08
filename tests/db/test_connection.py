@@ -1,65 +1,82 @@
-import sqlite3
-from contextlib import closing
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
-from waifu_toolbox.db import connection
-from waifu_toolbox.paths import AppPaths
+from waifu_toolbox.db import connection, migration
+from waifu_toolbox.db.connection import Database
+from waifu_toolbox.db.engine import create_sqlite_engine
+from waifu_toolbox.db.operations import list_repos
+from waifu_toolbox.db.schema import images, repos
 
 pytestmark = pytest.mark.integration
 
 
-def test_open_and_init_creates_schema_and_sets_user_version(isolated_db: Path):
-    conn = connection.open_connection(isolated_db)
-    with closing(conn) as conn:
-        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
-        assert {"repos", "images", "feature_cache"} <= tables
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == connection.SCHEMA_VERSION
+def test_database_disposes_engine_when_initialization_fails(isolated_db: Path, monkeypatch: pytest.MonkeyPatch):
+    engine = create_sqlite_engine(isolated_db)
+    dispose_engine = Mock(wraps=engine.dispose)
+    monkeypatch.setattr(connection, "create_sqlite_engine", Mock(return_value=engine))
+    monkeypatch.setattr(migration, "run_migrations", Mock(side_effect=RuntimeError("initialization failed")))
+    monkeypatch.setattr(engine, "dispose", dispose_engine)
 
-        repo_columns = {row[1] for row in conn.execute("PRAGMA table_info(repos)").fetchall()}
-        assert {"repo_id", "name", "path"} <= repo_columns
-
-        image_columns = {row[1] for row in conn.execute("PRAGMA table_info(images)").fetchall()}
-        assert {"repo_id", "hash", "label", "ccip_feature", "dreamsim_feature", "relative_path"} <= image_columns
-
-        cache_columns = {row[1] for row in conn.execute("PRAGMA table_info(feature_cache)").fetchall()}
-        assert {"hash", "feature_type", "feature"} <= cache_columns
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        Database(isolated_db)
+    dispose_engine.assert_called_once_with()
 
 
-def test_open_and_init_migrates_v1_schema_and_creates_backup(isolated_db: Path, app_paths: AppPaths):
-    conn = sqlite3.connect(str(isolated_db))
-    with closing(conn) as conn:
-        conn.executescript("""
-            CREATE TABLE repos (
-                repo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                path TEXT NOT NULL
-            );
+def test_database_can_reopen_after_close(database: Database):
+    with database.begin() as conn:
+        conn.execute(repos.insert().values(name="chars", path="C:/repo"))
 
-            CREATE TABLE images (
-                repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
-                hash BLOB NOT NULL,
-                label TEXT NOT NULL,
-                ccip_feature BLOB,
-                dreamsim_feature BLOB,
-                UNIQUE (repo_id, hash)
-            );
+    database.close()
 
-            CREATE TABLE feature_cache (
-                hash BLOB NOT NULL,
-                feature_type TEXT NOT NULL,
-                feature BLOB NOT NULL,
-                PRIMARY KEY (hash, feature_type)
-            );
+    with database.connect() as conn:
+        assert conn.execute(repos.select()).one().name == "chars"
 
-            PRAGMA user_version = 1;
-            """)
-        conn.commit()
 
-    migrated = connection.open_connection(isolated_db)
-    with closing(migrated) as migrated:
-        assert migrated.execute("PRAGMA user_version").fetchone()[0] == connection.SCHEMA_VERSION
+def test_database_begin_rolls_back_when_scope_raises(database: Database):
+    with pytest.raises(ValueError, match="abort transaction"), database.begin() as conn:
+        conn.execute(repos.insert().values(name="chars", path="C:/repo"))
+        raise ValueError("abort transaction")
 
-    backups = list(app_paths.db_backup_dir.glob(f"{isolated_db.stem}.v1.*{isolated_db.suffix}"))
-    assert len(backups) == 1
+    with database.connect() as conn:
+        assert conn.execute(repos.select()).all() == []
+
+
+def test_database_enforces_foreign_keys(database: Database):
+    with (
+        pytest.raises(IntegrityError, match="FOREIGN KEY constraint failed"),
+        database.begin() as conn,
+    ):
+        conn.execute(images.insert().values(repo_id=999, hash=b"orphan", label="alice"))
+
+
+def test_database_connect_does_not_commit_uncommitted_writes(database: Database):
+    with database.connect() as conn:
+        conn.execute(repos.insert().values(name="chars", path="C:/repo"))
+
+    with database.connect() as conn:
+        assert conn.execute(repos.select()).all() == []
+
+
+def test_databases_keep_independent_contents(database: Database, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    other_database = Database(tmp_path / "other.db")
+    try:
+        with database.begin() as conn:
+            conn.execute(repos.insert().values(name="first", path="C:/first"))
+        with other_database.begin() as conn:
+            conn.execute(repos.insert().values(name="second", path="C:/second"))
+
+        with database.connect() as conn:
+            assert conn.execute(repos.select()).one().name == "first"
+        with other_database.connect() as conn:
+            assert conn.execute(repos.select()).one().name == "second"
+
+        assert [repo.name for repo in list_repos()] == ["first"]
+        with monkeypatch.context() as patch:
+            patch.setattr(connection, "database", other_database)
+            assert [repo.name for repo in list_repos()] == ["second"]
+        assert [repo.name for repo in list_repos()] == ["first"]
+    finally:
+        other_database.close()

@@ -1,11 +1,10 @@
-from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from ..utils.image import IMG_EXTS
 from ..utils.result import Result
-from .connection import open_connection
+from . import connection
 from .repo import ImageRepo
 
 
@@ -25,7 +24,7 @@ def analyze_repo(
     target: str = "",
 ) -> Result[dict[str, FileStat]]:
     """返回 {键: FileStat} 映射。键为扩展名或类别名。"""
-    with closing(open_connection()) as conn:
+    with connection.database.connect() as conn:
         db = ImageRepo(conn)
         if not db.load(repo_name):
             return Result(False, f"仓库 '{repo_name}' 不存在")

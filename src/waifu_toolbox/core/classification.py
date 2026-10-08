@@ -2,7 +2,6 @@
 
 import shutil
 from collections import Counter, defaultdict
-from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -10,8 +9,8 @@ from pathlib import Path
 from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
 
+from ..db import connection
 from ..db.cache import CacheManager
-from ..db.connection import open_connection
 from ..db.repo import ImageRepo
 from ..utils.feature import get_image_features_use_cache
 from ..utils.progress import ProgressFactory
@@ -45,7 +44,7 @@ def classify_by_ccip(
           每个类别一个子文件夹，子文件夹内按聚类 ID 进一步分类。
         - `__unknown__` 为保留名，表示无匹配。
     """
-    with closing(open_connection()) as conn:
+    with connection.database.begin() as conn:
         cache = CacheManager(conn)
 
         # -----------------------------
@@ -157,7 +156,7 @@ def just_cluster_by_ccip(
     """
     仅聚类，不参考仓库分类
     """
-    with closing(open_connection()) as conn:
+    with connection.database.begin() as conn:
         cache = CacheManager(conn)
         to_cluster_features, to_cluster_paths = get_image_features_use_cache(
             "ccip",
