@@ -1,7 +1,13 @@
-import argparse
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import argparse
+
 from pathlib import Path
 
-from ..utils.console import log_error, log_info
+from ..utils.console import log_info
 from .base import Command
 
 
@@ -21,8 +27,5 @@ class SortCommand(Command):
     def execute(args: argparse.Namespace) -> None:
         from ..core.sort import sort_images_by_perceptual_similarity
 
-        result = sort_images_by_perceptual_similarity(args.dir, args.avoid_sorted)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+        sort_images_by_perceptual_similarity(args.dir, args.avoid_sorted)
+        log_info("排序完成")

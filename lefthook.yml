@@ -1,0 +1,50 @@
+min_version: 2.1.16
+assert_lefthook_installed: true
+lefthook: pnpm exec lefthook
+glob_matcher: doublestar
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: backend checks
+      glob:
+        - src/**/*.py
+        - tests/**/*.py
+        - pyproject.toml
+        - lefthook.yml
+      group:
+        parallel: true
+        jobs:
+          - name: backend lint
+            run: ruff check src tests
+
+          - name: backend format
+            run: ruff format --check src tests
+
+          - name: backend typecheck
+            run: pyright
+
+          - name: backend tests
+            run: pytest
+
+    - name: frontend checks
+      glob:
+        - frontend/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - lefthook.yml
+      group:
+        parallel: true
+        jobs:
+          - name: frontend format
+            run: pnpm --filter waifu-toolbox-frontend format:check
+
+          - name: frontend lint
+            run: pnpm --filter waifu-toolbox-frontend lint
+
+          - name: frontend typecheck
+            run: pnpm --filter waifu-toolbox-frontend typecheck
+
+          - name: frontend build
+            run: pnpm --filter waifu-toolbox-frontend build:bundle

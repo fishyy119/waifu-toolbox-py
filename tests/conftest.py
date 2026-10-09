@@ -1,32 +1,16 @@
 from collections.abc import Iterator
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pytest
 from sqlalchemy.engine import Connection
 
 from tests.helpers import FakeProgressReporter
-from waifu_toolbox import paths
+from waifu_toolbox.db import connection as db_module
+from waifu_toolbox.db.connection import Database
 from waifu_toolbox.paths import AppPaths
 from waifu_toolbox.utils.progress import ProgressFactory
 
-# 在导入默认实例前使用临时路径，避免测试收集阶段迁移真实数据库。
-_test_temp_root = Path(__file__).resolve().parents[1] / ".codex-pytest-tmp"
-_test_temp_root.mkdir(exist_ok=True)
-with TemporaryDirectory(prefix="waifu-test-default-", dir=_test_temp_root) as default_home:
-    temporary_home = Path(default_home)
-    default_paths = AppPaths(
-        waifu_home=temporary_home,
-        database_root=temporary_home / "database",
-        waifu_db=temporary_home / "database" / "waifu.db",
-        dreamsim_model_root=temporary_home / "dreamsim_models",
-    )
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(paths, "PATHS", default_paths)
-        from waifu_toolbox.db import connection
-        from waifu_toolbox.db.connection import Database
-
-        connection.database.close()
+# 模块导入不再迁移数据库；每个测试通过 fixture 替换全局管理器。
 
 
 @pytest.fixture
@@ -48,7 +32,7 @@ def isolated_db(app_paths: AppPaths) -> Path:
 def database(isolated_db: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Database]:
     # 每个测试独立管理初始化状态，并在结束时释放 SQLite 文件句柄。
     database = Database(isolated_db)
-    monkeypatch.setattr(connection, "database", database)
+    monkeypatch.setattr(db_module, "database", database)
     try:
         yield database
     finally:

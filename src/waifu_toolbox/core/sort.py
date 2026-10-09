@@ -8,14 +8,11 @@ import numpy as np
 import umap
 from numpy.typing import NDArray
 
-from ..db import connection
-from ..db.cache import CacheManager
 from ..utils.common import compute_file_hash
 from ..utils.dreamsim import compute_dreamsim_distance_matrix
-from ..utils.feature import PathsWithHashes, get_image_features_use_cache
 from ..utils.image import IMG_EXTS
 from ..utils.progress import ProgressFactory, tqdm_factory
-from ..utils.result import Result
+from .feature import PathsWithHashes, get_image_features_use_cache
 
 
 def umap_order(
@@ -90,7 +87,7 @@ def sort_images_by_perceptual_similarity(
     avoid_sorted: bool,
     *,
     make_progress: ProgressFactory | None = None,
-) -> Result[None]:
+) -> None:
     """
     根据 DreamSim 感知相似度对图片进行排序，使得相似图片相邻
 
@@ -102,54 +99,50 @@ def sort_images_by_perceptual_similarity(
         - 排序单元是每个目录，不递归
         - 如果存在 .nosort 文件，该目录将被忽略
     """
-    with connection.database.begin() as conn:
-        cache = CacheManager(conn)
-        factory = make_progress or tqdm_factory
-        sort_units = get_sort_units(images_root)
-        exts = IMG_EXTS
-        outer = factory(len(sort_units), "排序图片")
-        for unit in sort_units:
-            image_paths: list[Path] = []
-            for ext in exts:
-                image_paths.extend(unit.glob(ext))
-            image_paths.sort()  # 尽量让输入序列稳定
+    factory = make_progress or tqdm_factory
+    sort_units = get_sort_units(images_root)
+    exts = IMG_EXTS
+    outer = factory(len(sort_units), "排序图片")
+    for unit in sort_units:
+        image_paths: list[Path] = []
+        for ext in exts:
+            image_paths.extend(unit.glob(ext))
+        image_paths.sort()  # 尽量让输入序列稳定
 
-            if len(image_paths) <= 2:
-                outer.update(1)
-                continue
-
-            if has_uniform_prefix(image_paths) and avoid_sorted:
-                outer.update(1)
-                continue
-
-            outer.set_postfix(unit.name)
-
-            image_hashes = [compute_file_hash(path) for path in image_paths]
-            features, _ = get_image_features_use_cache(
-                "dreamsim",
-                paths_and_hashes=PathsWithHashes(image_paths, image_hashes),
-                cache=cache,
-                make_progress=factory,
-            )
-            embeddings = np.stack(features, axis=0)
-            distances = compute_dreamsim_distance_matrix(embeddings)
-
-            n_neighbors = min(10, max(2, len(image_paths) // 2)) if len(image_paths) < 200 else 20
-            order = umap_order(distances, n_neighbors=n_neighbors)
-
-            # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
-            temp_paths: list[Path] = []
-            for idx in order:
-                old_path = image_paths[idx]
-                temp_path = old_path.with_name(f"__temp_{old_path.name}")
-                old_path.rename(temp_path)
-                temp_paths.append(temp_path)
-
-            for rank, _ in enumerate(order):
-                old_path = temp_paths[rank]
-                new_path = old_path.with_name(f"{unit.name}_{rank:04d}{old_path.suffix}")
-                old_path.rename(new_path)
-
+        if len(image_paths) <= 2:
             outer.update(1)
-        outer.close()
-        return Result(True, "排序完成")
+            continue
+
+        if has_uniform_prefix(image_paths) and avoid_sorted:
+            outer.update(1)
+            continue
+
+        outer.set_postfix(unit.name)
+
+        image_hashes = [compute_file_hash(path) for path in image_paths]
+        features, _ = get_image_features_use_cache(
+            "dreamsim",
+            paths_and_hashes=PathsWithHashes(image_paths, image_hashes),
+            make_progress=factory,
+        )
+        embeddings = np.stack(features, axis=0)
+        distances = compute_dreamsim_distance_matrix(embeddings)
+
+        n_neighbors = min(10, max(2, len(image_paths) // 2)) if len(image_paths) < 200 else 20
+        order = umap_order(distances, n_neighbors=n_neighbors)
+
+        # 根据 order 重命名图片（为了避免多次排序重名导致报错，先改为临时名称）
+        temp_paths: list[Path] = []
+        for idx in order:
+            old_path = image_paths[idx]
+            temp_path = old_path.with_name(f"__temp_{old_path.name}")
+            old_path.rename(temp_path)
+            temp_paths.append(temp_path)
+
+        for rank, _ in enumerate(order):
+            old_path = temp_paths[rank]
+            new_path = old_path.with_name(f"{unit.name}_{rank:04d}{old_path.suffix}")
+            old_path.rename(new_path)
+
+        outer.update(1)
+    outer.close()

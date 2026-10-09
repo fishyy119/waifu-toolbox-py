@@ -1,14 +1,19 @@
-import argparse
+from __future__ import annotations
+
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from rich import box, print
 from rich.console import Console
 from rich.table import Table
 
-from ..db.analysis import FileStat
 from ..utils.console import log_error, log_info
 from .base import Command, CommandType
+
+if TYPE_CHECKING:
+    import argparse
+
+    from ..core.analysis import FileStat
 
 
 # ============================
@@ -27,13 +32,14 @@ class RepoCreateCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import create_repo
+        from ..core.operations import create_repo
 
         result = create_repo(args.name, args.path, extract_ccip=args.ccip, extract_dreamsim=args.dreamsim)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+        message = f"仓库 '{args.name}' 创建成功"
+        if result.label_mismatches:
+            message += "\n\n标签冲突（同 hash 不同标签，仅保留首次出现）:\n"
+            message += "\n".join(f"  {m}" for m in result.label_mismatches)
+        log_info(message)
 
 
 class RepoUpdateCommand(Command):
@@ -53,7 +59,7 @@ class RepoUpdateCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import (
+        from ..core.operations import (
             change_repo_path,
             deduplicate_repo,
             purge_repo,
@@ -62,23 +68,31 @@ class RepoUpdateCommand(Command):
         )
 
         if args.purge:
-            result = purge_repo(args.name)
+            removed = purge_repo(args.name)
+            log_info(f"清除了 {removed} 条失效记录" if removed > 0 else "没有需要清除的记录")
         elif args.deduplicate:
-            result = deduplicate_repo(args.name)
+            deduplicated = deduplicate_repo(args.name)
+            parts: list[str] = []
+            if deduplicated.deleted > 0:
+                parts.append(f"删除了 {deduplicated.deleted} 张重复图片")
+            if deduplicated.label_mismatches:
+                parts.append(f"{len(deduplicated.label_mismatches)} 条标签不一致")
+            log_info("、".join(parts) if parts else "未发现重复")
+            for mismatch in deduplicated.label_mismatches:
+                log_error(f"标签不一致: {mismatch}")
         elif args.set_path:
-            result = change_repo_path(args.name, new_path=args.set_path)
+            change_repo_path(args.name, new_path=args.set_path)
+            log_info("路径已更新")
         elif args.rename:
-            result = rename_repo(args.name, args.rename)
+            rename_repo(args.name, args.rename)
+            log_info(f"已重命名为 '{args.rename}'")
         else:
-            result = update_repo(args.name, extract_ccip=args.ccip, extract_dreamsim=args.dreamsim)
-
-        if result.ok:
-            log_info(result.message)
-            if hasattr(result.data, "label_mismatches"):
-                for mismatch in result.data.label_mismatches:  # type: ignore[union-attr]
-                    log_error(f"标签不一致: {mismatch}")
-        else:
-            log_error(result.message)
+            updated = update_repo(args.name, extract_ccip=args.ccip, extract_dreamsim=args.dreamsim)
+            log_info(
+                f"新增 {updated.new_images} 张图片，更新 {updated.updated_labels} 个标签"
+                if updated.new_images or updated.updated_labels
+                else "仓库已是最新"
+            )
 
 
 class RepoRemoveCommand(Command):
@@ -91,13 +105,10 @@ class RepoRemoveCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import delete_repo
+        from ..core.operations import delete_repo
 
-        result = delete_repo(args.name)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+        delete_repo(args.name)
+        log_info(f"已删除仓库 '{args.name}' 的索引（未删除磁盘文件）")
 
 
 class RepoListCommand(Command):
@@ -110,7 +121,7 @@ class RepoListCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import list_repos
+        from ..core.operations import list_repos
 
         rows = list_repos()
         if not rows:
@@ -134,7 +145,7 @@ class RepoInfoCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import get_repo_info
+        from ..core.operations import get_repo_info
 
         info = get_repo_info(args.name)
         if info is None:
@@ -169,13 +180,10 @@ class RepoFlattenCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import flatten_repo
+        from ..core.operations import flatten_repo
 
         result = flatten_repo(args.name)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+        log_info(f"输出文件夹: {result}")
 
 
 class RepoAnalyzeCommand(Command):
@@ -193,15 +201,12 @@ class RepoAnalyzeCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.analysis import analyze_repo
+        from ..core.analysis import analyze_repo
 
         analysis_type = "category" if args.category else "extension"
         result = analyze_repo(args.name, type=analysis_type, target=args.dir)
-        if not result.ok or result.data is None:
-            log_error(result.message)
-            return
         title = f"{analysis_type.capitalize()} Analysis: {args.name}" + (f"/{args.dir}" if args.dir else "")
-        _print_stats(result.data, title=title, sort_key=args.sort)
+        _print_stats(result, title=title, sort_key=args.sort)
 
 
 def _print_stats(
@@ -250,13 +255,9 @@ class RepoSearchCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import search_similar
+        from ..core.operations import search_similar
 
-        result = search_similar(args.name, args.image, args.top_k, skip_update=not args.update)
-        if not result.ok or result.data is None:
-            log_error(result.message)
-            return
-        results = result.data
+        results = search_similar(args.name, args.image, args.top_k, skip_update=not args.update)
 
         table = Table(show_header=True, header_style="bold", title=f"Top {len(results)} similar images")
         table.add_column("#", style="dim", width=4)

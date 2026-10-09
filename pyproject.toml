@@ -4,6 +4,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/waifu_toolbox"]
+artifacts = ["/src/waifu_toolbox/frontend/**"]
 
 [project]
 name = "waifu-toolbox"
@@ -23,7 +24,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["nicegui>=3.14.0,<4", "pydantic>=2,<3", "pyicu-wheels>=2.15.2,<2.16"]
+gui = ["fastapi>=0.115,<1", "uvicorn>=0.32,<1", "pydantic>=2,<3", "pyicu-wheels>=2.15.2,<2.16"]
 
 [dependency-groups]
 dev = [
@@ -35,7 +36,7 @@ dev = [
 
 [project.scripts]
 waifu = "waifu_toolbox.cli:main"
-waifu-gui = "waifu_toolbox.gui:main"
+waifu-gui = "waifu_toolbox.gui.cli:main"
 
 [tool.pytest]
 minversion = "9.0"
@@ -75,7 +76,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "B"]
-"src/waifu_toolbox/gui/**/*.py" = ["SIM117"] # with 嵌套
+"src/waifu_toolbox/gui/api/**/*.py" = ["TC001", "TC003"] # FastAPI 在运行时解析类型
 
 [tool.ruff.lint.isort]
 known-first-party = ["waifu_toolbox"]

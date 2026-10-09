@@ -35,7 +35,6 @@ def _load_dreamsim_components() -> DreamSimComponents:
     return DreamSimComponents(model, preprocess)
 
 
-
 def normalize_embedding(vector: NDArray[np.float32]) -> NDArray[np.float32]:
     norm = float(np.linalg.norm(vector))
     if not np.isfinite(norm) or norm <= 0:

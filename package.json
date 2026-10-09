@@ -1,0 +1,24 @@
+{
+  "name": "waifu-toolbox",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.13 <23 || >=24 <25",
+    "pnpm": ">=11.24.0 <12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter waifu-toolbox-frontend dev",
+    "build": "pnpm --filter waifu-toolbox-frontend build",
+    "check": "pnpm --filter waifu-toolbox-frontend check",
+    "lint": "pnpm --filter waifu-toolbox-frontend lint",
+    "typecheck": "pnpm --filter waifu-toolbox-frontend typecheck",
+    "format:check": "pnpm --filter waifu-toolbox-frontend format:check",
+    "hooks:install": "lefthook install",
+    "hooks:run": "lefthook run pre-commit",
+    "hooks:validate": "lefthook validate"
+  },
+  "devDependencies": {
+    "lefthook": "^2.1.16"
+  }
+}

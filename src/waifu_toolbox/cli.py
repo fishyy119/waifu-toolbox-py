@@ -9,6 +9,8 @@ from .command import (
     RepoCommand,
     SortCommand,
 )
+from .core.errors import OperationError
+from .utils.console import log_error
 
 random.seed(42)
 
@@ -29,7 +31,11 @@ def main():
         command_map[cmd_cls.name] = cmd_cls
 
     args = parser.parse_args()
-    command_map[args.command].execute(args)
+    try:
+        command_map[args.command].execute(args)
+    except OperationError as error:
+        log_error(str(error))
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

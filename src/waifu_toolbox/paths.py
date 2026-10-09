@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -10,13 +11,8 @@ class AppPaths:
     waifu_db: Path
     dreamsim_model_root: Path
 
-    def __post_init__(self) -> None:
-        self.waifu_home.mkdir(parents=True, exist_ok=True)
-        self.database_root.mkdir(parents=True, exist_ok=True)
-        self.dreamsim_model_root.mkdir(parents=True, exist_ok=True)
 
-
-_waifu_home = Path.home() / ".waifu"
+_waifu_home = Path(os.environ.get("WAIFU_HOME", Path.home() / ".waifu")).expanduser().resolve()
 _database_root = _waifu_home / "database"
 
 PATHS: Final[AppPaths] = AppPaths(

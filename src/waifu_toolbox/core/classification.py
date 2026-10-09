@@ -9,12 +9,10 @@ from pathlib import Path
 from imgutils.metrics.ccip import ccip_clustering
 from numpy.typing import NDArray
 
-from ..db import connection
-from ..db.cache import CacheManager
-from ..db.repo import ImageRepo
-from ..utils.feature import get_image_features_use_cache
 from ..utils.progress import ProgressFactory
-from ..utils.result import Result
+from .errors import OperationError
+from .feature import get_image_features_use_cache
+from .repository import ImageRepo
 
 
 def _extract_features_to_list(features: NDArray | list[NDArray], indices: list[int] | None = None) -> list[NDArray]:
@@ -32,7 +30,7 @@ def classify_by_ccip(
     num_references: int,
     *,
     make_progress: ProgressFactory | None = None,
-) -> Result[Path]:
+) -> Path:
     """
     Args:
         labeled_repo (str): 目标仓库名（预生成的数据库）.
@@ -44,107 +42,106 @@ def classify_by_ccip(
           每个类别一个子文件夹，子文件夹内按聚类 ID 进一步分类。
         - `__unknown__` 为保留名，表示无匹配。
     """
-    with connection.database.begin() as conn:
-        cache = CacheManager(conn)
 
-        # -----------------------------
-        # 1. 加载已标注图片
-        # -----------------------------
-        db = ImageRepo(conn, labeled_repo)
-        db.load_features(ccip=True)
+    # -----------------------------
+    # 1. 加载已标注图片
+    # -----------------------------
+    db = ImageRepo()
+    if not db.load(labeled_repo):
+        raise OperationError(f"仓库 '{labeled_repo}' 不存在")
+    db.load_features(ccip=True)
 
-        if db.ccip_features is None or len(db.ccip_features) == 0:
-            return Result(False, f"仓库 '{labeled_repo}' 没有 CCIP 特征，请先提取")
+    if db.ccip_features is None or len(db.ccip_features) == 0:
+        raise OperationError(f"仓库 '{labeled_repo}' 没有 CCIP 特征，请先提取")
 
-        db.sample(num_references)
+    db.sample(num_references)
 
-        labeled_categories = db.labels
-        labeled_features = db.ccip_features
-        labeled_hashes = db.hashes
+    labeled_categories = db.labels
+    labeled_features = db.ccip_features
+    labeled_hashes = db.hashes
 
-        # -----------------------------
-        # 2. 加载待分类图片
-        # -----------------------------
-        to_classify_features, to_classify_paths = get_image_features_use_cache(
-            "ccip",
-            img_folder_root=to_classify_root,
-            cache=cache,
-            make_progress=make_progress,
-        )
-        if not to_classify_paths:
-            return Result(False, "未找到待分类图片")
+    # -----------------------------
+    # 2. 加载待分类图片
+    # -----------------------------
+    to_classify_features, to_classify_paths = get_image_features_use_cache(
+        "ccip",
+        img_folder_root=to_classify_root,
+        make_progress=make_progress,
+    )
+    if not to_classify_paths:
+        raise OperationError("未找到待分类图片")
 
-        # -----------------------------
-        # 3. 合并图片
-        # -----------------------------
-        all_features = _extract_features_to_list(labeled_features) + to_classify_features
-        major_keys = labeled_hashes + to_classify_paths  # 这就相当于主键了
-        label_dict = dict(zip(labeled_hashes, labeled_categories, strict=False))
+    # -----------------------------
+    # 3. 合并图片
+    # -----------------------------
+    all_features = _extract_features_to_list(labeled_features) + to_classify_features
+    major_keys = labeled_hashes + to_classify_paths  # 这就相当于主键了
+    label_dict = dict(zip(labeled_hashes, labeled_categories, strict=False))
 
-        # -----------------------------
-        # 4. 特征聚类
-        # -----------------------------
-        mapping: list[int] = ccip_clustering(all_features)  # pyright: ignore
-        # ? AttributeError: 'list' object has no attribute 'tolist'
-        # 库的类型注解标错了。。。。
+    # -----------------------------
+    # 4. 特征聚类
+    # -----------------------------
+    mapping: list[int] = ccip_clustering(all_features)  # pyright: ignore
+    # ? AttributeError: 'list' object has no attribute 'tolist'
+    # 库的类型注解标错了。。。。
 
-        # -----------------------------
-        # INDEX: 按聚类簇创建索引
-        # -----------------------------
-        @dataclass
-        class ClusterInfo:
-            known_labels: list[str] = field(default_factory=list)
-            to_classify_indices: list[int] = field(default_factory=list)
-            label: str = "__unknown__"
+    # -----------------------------
+    # INDEX: 按聚类簇创建索引
+    # -----------------------------
+    @dataclass
+    class ClusterInfo:
+        known_labels: list[str] = field(default_factory=list)
+        to_classify_indices: list[int] = field(default_factory=list)
+        label: str = "__unknown__"
 
-        cluster_index: dict[int, ClusterInfo] = defaultdict(ClusterInfo)
+    cluster_index: dict[int, ClusterInfo] = defaultdict(ClusterInfo)
 
-        assert len(major_keys) == len(mapping)
-        hashes_len = len(labeled_hashes)
-        for ind, (mkey, cluster_id) in enumerate(zip(major_keys, mapping, strict=False)):
-            if isinstance(mkey, bytes):  # 这种类型就代表已经在数据库中有标注了
-                cluster_index[cluster_id].known_labels.append(label_dict[mkey])
-            else:  # 待分类图片，减去已标注图片数，得到待分类图片索引
-                cluster_index[cluster_id].to_classify_indices.append(ind - hashes_len)
+    assert len(major_keys) == len(mapping)
+    hashes_len = len(labeled_hashes)
+    for ind, (mkey, cluster_id) in enumerate(zip(major_keys, mapping, strict=False)):
+        if isinstance(mkey, bytes):  # 这种类型就代表已经在数据库中有标注了
+            cluster_index[cluster_id].known_labels.append(label_dict[mkey])
+        else:  # 待分类图片，减去已标注图片数，得到待分类图片索引
+            cluster_index[cluster_id].to_classify_indices.append(ind - hashes_len)
 
-        for cluster_id, cluster_info in cluster_index.items():
-            known_labels = cluster_info.known_labels
-            if known_labels and cluster_id != -1:
-                vote = Counter(known_labels).most_common(1)[0][0]
-                cluster_index[cluster_id].label = vote
+    for cluster_id, cluster_info in cluster_index.items():
+        known_labels = cluster_info.known_labels
+        if known_labels and cluster_id != -1:
+            vote = Counter(known_labels).most_common(1)[0][0]
+            cluster_index[cluster_id].label = vote
 
-        # -----------------------------
-        # INDEX: 按投票分类创建索引
-        # -----------------------------
-        category_index: dict[str, list[int]] = defaultdict(list)
-        for _, cluster_info in cluster_index.items():
-            category_index[cluster_info.label].extend(cluster_info.to_classify_indices)
+    # -----------------------------
+    # INDEX: 按投票分类创建索引
+    # -----------------------------
+    category_index: dict[str, list[int]] = defaultdict(list)
+    for _, cluster_info in cluster_index.items():
+        category_index[cluster_info.label].extend(cluster_info.to_classify_indices)
 
-        # -----------------------------
-        # 分配类别给待分类图片并保存
-        # -----------------------------
-        report_dir_name = f"{labeled_repo}.report.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        report_root = to_classify_root.parent / report_dir_name
-        report_root.mkdir(exist_ok=True)
+    # -----------------------------
+    # 分配类别给待分类图片并保存
+    # -----------------------------
+    report_dir_name = f"{labeled_repo}.report.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    report_root = to_classify_root.parent / report_dir_name
+    report_root.mkdir(exist_ok=True)
 
-        # 每个分类的候选额外进行一次聚类，提升报告质量
-        for category, indices in category_index.items():
-            if len(indices) < 5:  #  这是聚类方法需要的最小样本数量，过小应跳过
-                continue
-            candidate_features = _extract_features_to_list(to_classify_features, indices)
-            candidate_mapping: list[int] = ccip_clustering(candidate_features)  # type: ignore
+    # 每个分类的候选额外进行一次聚类，提升报告质量
+    for category, indices in category_index.items():
+        if len(indices) < 5:  #  这是聚类方法需要的最小样本数量，过小应跳过
+            continue
+        candidate_features = _extract_features_to_list(to_classify_features, indices)
+        candidate_mapping: list[int] = ccip_clustering(candidate_features)  # type: ignore
 
-            for p_ind, c_id2 in zip(indices, candidate_mapping, strict=False):
-                path = to_classify_paths[p_ind]
-                cluster_dir = report_root / category / f"{c_id2}"
-                cluster_dir.mkdir(parents=True, exist_ok=True)
+        for p_ind, c_id2 in zip(indices, candidate_mapping, strict=False):
+            path = to_classify_paths[p_ind]
+            cluster_dir = report_root / category / f"{c_id2}"
+            cluster_dir.mkdir(parents=True, exist_ok=True)
 
-                target_file = cluster_dir / path.name
-                if target_file.exists():
-                    return Result(False, f"发现重复的文件名: {target_file.name}")
-                shutil.copy2(path, target_file)
+            target_file = cluster_dir / path.name
+            if target_file.exists():
+                raise OperationError(f"发现重复的文件名: {target_file.name}")
+            shutil.copy2(path, target_file)
 
-        return Result(True, f"报告已生成: {report_root}", report_root)
+    return report_root
 
 
 def just_cluster_by_ccip(
@@ -152,44 +149,41 @@ def just_cluster_by_ccip(
     inplace: bool = False,
     *,
     make_progress: ProgressFactory | None = None,
-) -> Result[Path]:
+) -> Path:
     """
     仅聚类，不参考仓库分类
     """
-    with connection.database.begin() as conn:
-        cache = CacheManager(conn)
-        to_cluster_features, to_cluster_paths = get_image_features_use_cache(
-            "ccip",
-            img_folder_root=to_cluster_root,
-            cache=cache,
-            make_progress=make_progress,
-        )
-        if not to_cluster_paths:
-            return Result(False, "未找到待分类图片")
+    to_cluster_features, to_cluster_paths = get_image_features_use_cache(
+        "ccip",
+        img_folder_root=to_cluster_root,
+        make_progress=make_progress,
+    )
+    if not to_cluster_paths:
+        raise OperationError("未找到待分类图片")
 
-        mapping: list[int] = ccip_clustering(to_cluster_features)  # pyright: ignore
-        # ? AttributeError: 'list' object has no attribute 'tolist'
-        # 库的类型注解标错了。。。。
+    mapping: list[int] = ccip_clustering(to_cluster_features)  # pyright: ignore
+    # ? AttributeError: 'list' object has no attribute 'tolist'
+    # 库的类型注解标错了。。。。
 
-        # -----------------------------
-        # 保存
-        # -----------------------------
-        if inplace:
-            report_root = to_cluster_root
-            file_op = shutil.move
-        else:
-            report_dir_name = f"{to_cluster_root.name}.report.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            report_root = to_cluster_root.parent / report_dir_name
-            report_root.mkdir(exist_ok=True)
-            file_op = shutil.copy2
+    # -----------------------------
+    # 保存
+    # -----------------------------
+    if inplace:
+        report_root = to_cluster_root
+        file_op = shutil.move
+    else:
+        report_dir_name = f"{to_cluster_root.name}.report.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        report_root = to_cluster_root.parent / report_dir_name
+        report_root.mkdir(exist_ok=True)
+        file_op = shutil.copy2
 
-        for path, cluster_id in zip(to_cluster_paths, mapping, strict=False):
-            cluster_dir = report_root / f"{cluster_id}"
-            cluster_dir.mkdir(parents=True, exist_ok=True)
+    for path, cluster_id in zip(to_cluster_paths, mapping, strict=False):
+        cluster_dir = report_root / f"{cluster_id}"
+        cluster_dir.mkdir(parents=True, exist_ok=True)
 
-            target_file = cluster_dir / path.name
-            if target_file.exists():
-                return Result(False, f"发现重复的文件名: {target_file.name}")
-            file_op(path, target_file)
+        target_file = cluster_dir / path.name
+        if target_file.exists():
+            raise OperationError(f"发现重复的文件名: {target_file.name}")
+        file_op(path, target_file)
 
-        return Result(True, f"聚类完成: {report_root}", report_root)
+    return report_root

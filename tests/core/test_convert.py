@@ -5,6 +5,7 @@ from PIL import features as pil_features
 
 from tests.helpers import create_image, create_text_file
 from waifu_toolbox.core.convert import collect_files, convert_images, convert_single
+from waifu_toolbox.core.errors import OperationError
 
 WEBP_SUPPORTED = pil_features.check("webp")
 
@@ -44,8 +45,6 @@ def test_convert_single_can_replace_source_file(tmp_path: Path):
     assert source.with_suffix(".webp").exists()
 
 
-def test_convert_images_returns_failure_result_for_missing_directory(tmp_path: Path):
-    result = convert_images(tmp_path / "missing")
-
-    assert result.ok is False
-    assert "does not exist" in result.message
+def test_convert_images_rejects_missing_directory(tmp_path: Path):
+    with pytest.raises(OperationError, match="does not exist"):
+        convert_images(tmp_path / "missing")

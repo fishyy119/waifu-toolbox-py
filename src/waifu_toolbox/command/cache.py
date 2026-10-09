@@ -1,8 +1,12 @@
-import argparse
-from typing import ClassVar
+from __future__ import annotations
 
-from ..utils.console import log_error, log_info
+from typing import TYPE_CHECKING, ClassVar
+
+from ..utils.console import log_info
 from .base import Command, CommandType
+
+if TYPE_CHECKING:
+    import argparse
 
 
 class CacheClearCommand(Command):
@@ -16,13 +20,16 @@ class CacheClearCommand(Command):
 
     @staticmethod
     def execute(args: argparse.Namespace) -> None:
-        from ..db.operations import clear_cache
+        from ..core.operations import clear_cache
 
-        result = clear_cache(ccip=args.ccip, dreamsim=args.dreamsim)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+        data = clear_cache(ccip=args.ccip, dreamsim=args.dreamsim)
+        clear_all = not args.ccip and not args.dreamsim
+        parts: list[str] = []
+        if clear_all or args.ccip:
+            parts.append(f"CCIP {data.ccip_deleted} 条")
+        if clear_all or args.dreamsim:
+            parts.append(f"DreamSim {data.dreamsim_deleted} 条")
+        log_info(f"已清空缓存（{'、'.join(parts)}，共 {data.ccip_deleted + data.dreamsim_deleted} 条）")
 
 
 # cache 二级子命令集合

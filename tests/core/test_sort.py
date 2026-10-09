@@ -9,8 +9,8 @@ import pytest
 
 import waifu_toolbox.core as core_package
 from tests.helpers import create_image, create_text_file
+from waifu_toolbox.core.feature import FeatureResult
 from waifu_toolbox.db.connection import Database
-from waifu_toolbox.utils.feature import FeatureResult
 from waifu_toolbox.utils.progress import ProgressFactory
 
 pytestmark = pytest.mark.integration
@@ -86,13 +86,8 @@ def test_sort_preserves_protected_directories(
     extract_features = Mock(side_effect=AssertionError("受保护目录不应提取特征"))
     monkeypatch.setattr(sort_module, "get_image_features_use_cache", extract_features)
 
-    result = sort_module.sort_images_by_perceptual_similarity(
-        root,
-        avoid_sorted=True,
-        make_progress=make_progress,
-    )
+    sort_module.sort_images_by_perceptual_similarity(root, avoid_sorted=True, make_progress=make_progress)
 
-    assert result.ok is True
     assert {path: path.read_bytes() for path in root.rglob("*.png")} == before
     extract_features.assert_not_called()
 
@@ -125,13 +120,7 @@ def test_sort_renames_files_in_computed_order(
     )
     monkeypatch.setattr(sort_module, "umap_order", Mock(return_value=[2, 0, 1]))
 
-    result = sort_module.sort_images_by_perceptual_similarity(
-        root,
-        avoid_sorted=False,
-        make_progress=make_progress,
-    )
-
-    assert result.ok is True
+    sort_module.sort_images_by_perceptual_similarity(root, avoid_sorted=False, make_progress=make_progress)
 
     assert sorted(path.name for path in unit.iterdir()) == [
         "alice_0000.png",

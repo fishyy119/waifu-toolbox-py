@@ -4,10 +4,10 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from waifu_toolbox.core.operations import list_repos
 from waifu_toolbox.db import connection, migration
 from waifu_toolbox.db.connection import Database
 from waifu_toolbox.db.engine import create_sqlite_engine
-from waifu_toolbox.db.operations import list_repos
 from waifu_toolbox.db.schema import images, repos
 
 pytestmark = pytest.mark.integration
@@ -21,7 +21,7 @@ def test_database_disposes_engine_when_initialization_fails(isolated_db: Path, m
     monkeypatch.setattr(engine, "dispose", dispose_engine)
 
     with pytest.raises(RuntimeError, match="initialization failed"):
-        Database(isolated_db)
+        Database(isolated_db).connect()
     dispose_engine.assert_called_once_with()
 
 
@@ -74,8 +74,8 @@ def test_databases_keep_independent_contents(database: Database, tmp_path: Path,
             assert conn.execute(repos.select()).one().name == "second"
 
         assert [repo.name for repo in list_repos()] == ["first"]
-        with monkeypatch.context() as patch:
-            patch.setattr(connection, "database", other_database)
+        with monkeypatch.context() as scoped_patch:
+            scoped_patch.setattr(connection, "database", other_database)
             assert [repo.name for repo in list_repos()] == ["second"]
         assert [repo.name for repo in list_repos()] == ["first"]
     finally:

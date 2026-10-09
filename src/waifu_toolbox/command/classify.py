@@ -1,8 +1,13 @@
-import argparse
-from pathlib import Path
+from __future__ import annotations
 
-from ..utils.console import log_error, log_info
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from ..utils.console import log_info
 from .base import Command
+
+if TYPE_CHECKING:
+    import argparse
 
 
 # -----------------------------
@@ -28,11 +33,9 @@ class ClassifyCommand(Command):
             from ..core.classification import just_cluster_by_ccip
 
             result = just_cluster_by_ccip(args.wait_classify, args.inplace)
+            log_info(f"聚类完成: {result}")
         else:
             from ..core.classification import classify_by_ccip
 
             result = classify_by_ccip(args.repo, args.wait_classify, args.num_references)
-        if result.ok:
-            log_info(result.message)
-        else:
-            log_error(result.message)
+            log_info(f"报告已生成: {result}")

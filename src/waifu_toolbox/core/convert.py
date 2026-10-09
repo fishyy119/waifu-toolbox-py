@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 from ..utils.progress import ProgressFactory, tqdm_factory
-from ..utils.result import Result
+from .errors import OperationError
 
 
 @dataclass
@@ -78,13 +78,9 @@ def convert_images(
     source_format: str = "bmp",
     *,
     make_progress: ProgressFactory | None = None,
-) -> Result[ConvertResult]:
+) -> ConvertResult:
     try:
         source_files = collect_files(input_path, ext=f"*.{source_format.lower()}")
     except (FileNotFoundError, NotADirectoryError) as e:
-        return Result(False, str(e))
-    data = convert_images_parallel(source_files, replace=replace, make_progress=make_progress)
-    message = f"转换 {data.converted} 张"
-    if data.failed:
-        message += f"，失败 {data.failed} 张"
-    return Result(True, message, data)
+        raise OperationError(str(e)) from e
+    return convert_images_parallel(source_files, replace=replace, make_progress=make_progress)

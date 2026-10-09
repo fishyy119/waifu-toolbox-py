@@ -1,0 +1,7 @@
+packages:
+  - frontend
+
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  vue-demi: true
